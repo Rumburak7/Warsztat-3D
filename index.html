@@ -2686,7 +2686,7 @@ function renderFreePanel() {
   h += `<button type="button" class="frB hole" data-add="ventS" title="Kratka wentylacyjna - szczeliny. Przeciągnij na ściankę obudowy">${shapeIcon('ventS', 0, true)}<span>Kratka szczeliny</span></button>`;
   h += `<button type="button" class="frB hole" data-add="ventC" title="Kratka wentylacyjna - kółka. Przeciągnij na ściankę obudowy">${shapeIcon('ventC', 0, true)}<span>Kratka kółka</span></button>`;
   h += `<button type="button" class="frB" data-add="tplDlg" title="Wstaw gotową część z szablonu albo zapisanego modelu">${shapeIcon('tpl')}<span>Z szablonu…</span></button>`;
-  h += `<button type="button" class="frB" data-add="stl" title="Wczytaj plik STL albo 3MF z komputera (np. z MakerWorld) i przerób go - w 3MF każda część osobno">${shapeIcon('mesh')}<span>Wczytaj STL/3MF</span></button></div>`;
+  h += `<button type="button" class="frB" data-add="stl" title="Wczytaj plik STL, 3MF albo STEP z komputera (np. z MakerWorld) i przerób go - w 3MF i STEP każda część osobno (STEP potrzebuje internetu)">${shapeIcon('mesh')}<span>Wczytaj STL/3MF/STEP</span></button></div>`;
   // narzedzia: plaszczyzna robocza, linijka
   if (FR.wp || FR.ruler) h += `<div class="frInfo">${FR.wp ? `&#9645; Płaszczyzna: ścianka ${FR.wp.ax} (${FR.wp.ax[1] === 'z' ? 'wysokość ' + f1(FR.wp.p[2]) : FR.wp.ax[1].toUpperCase() + ' = ' + f1(FR.wp.p['xyz'.indexOf(FR.wp.ax[1])])} mm) <button type="button" class="btn sm" data-act="wpOff">na stół</button><br>` : ''}${FR.ruler ? `&#128207; Linijka: X ${f1(FR.ruler.x)} · Y ${f1(FR.ruler.y)} <button type="button" class="btn danger" data-act="rulerOff">&#10006; Usuń linijkę</button>` : ''}</div>`;
   h += `<div class="desc" style="font-size:12px;margin:-2px 0 8px">Kliknij klocek albo <b>przeciągnij go myszką</b> na stół lub na inny klocek.</div>`;
@@ -3173,15 +3173,51 @@ async function parse3mf(buf, fname) {
   return pieces.filter(p => p.sub !== 'modifier_part' && p.sub !== 'support_blocker' && p.sub !== 'support_enforcer');
 }
 
+/* ---------- STEP (z programow CAD) - czytnik OpenCascade pobierany z internetu tylko gdy potrzebny ---------- */
+const OCCT_URL = 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/';
+let occtP = null;
+function occtLoad() {
+  if (!occtP) occtP = new Promise((res, rej) => {
+    if (window.occtimportjs) return res();
+    const sc = document.createElement('script'); sc.src = OCCT_URL + 'occt-import-js.js'; sc.crossOrigin = 'anonymous';
+    sc.onload = res; sc.onerror = () => rej(new Error('Nie mogę pobrać czytnika STEP z internetu - sprawdź połączenie z internetem.'));
+    document.head.appendChild(sc);
+  }).then(() => window.occtimportjs({ locateFile: (f) => OCCT_URL + f })).catch((e) => { occtP = null; throw e; });
+  return occtP;
+}
+async function parseStep(buf, fname) {
+  progShow('Otwieram plik STEP', 0.15, window.occtimportjs ? 'czytnik STEP gotowy' : 'pobieram czytnik STEP (pierwszy raz ok. 7 MB, potem szybciej)');
+  const occt = await occtLoad();
+  progShow('Otwieram plik STEP', 0.55, 'zamieniam bryły na trójkąty…');
+  await new Promise(r => setTimeout(r, 30));
+  let r;
+  try { r = occt.ReadStepFile(new Uint8Array(buf), { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.0005, angularDeflection: 0.1 }); }
+  catch (e) { throw new Error('Nie udało się odczytać pliku STEP (' + (e && e.message || e) + ').'); }
+  if (!r || !r.success || !r.meshes || !r.meshes.length) throw new Error('W pliku STEP nie znalazłem żadnej bryły.');
+  const base = String(fname || 'model').replace(/\.[^.]+$/, ''), hex = (c) => c && c.length >= 3 ? '#' + c.slice(0, 3).map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('') : null;
+  const pieces = [];
+  r.meshes.forEach((m, i) => {
+    const P = m.attributes && m.attributes.position && m.attributes.position.array, I = m.index && m.index.array;
+    if (!P || !P.length) return;
+    const n = I ? I.length : P.length / 3, F = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) { const j = (I ? I[k] : k) * 3; F[k * 3] = P[j]; F[k * 3 + 1] = P[j + 1]; F[k * 3 + 2] = P[j + 2]; }
+    pieces.push({ F, name: (m.name || '').trim() || (r.meshes.length > 1 ? base + ' ' + (i + 1) : base), color: hex(m.color), sub: 'normal_part' });
+  });
+  if (!pieces.length) throw new Error('W pliku STEP nie znalazłem żadnej bryły.');
+  progShow('Otwieram plik STEP', 0.9, pieces.length + (pieces.length === 1 ? ' bryła' : ' brył'));
+  return pieces;
+}
+
 /* ---------- wczytanie pliku STL / 3MF jako klockow ---------- */
 // opts: { ask: true } - za duzy plik -> pytanie "uprościć?"; { auto: liczba } - uprość sam do tylu trojkatow (obrazek w magazynie)
 const MESH_SIMPLE = 250000;
 async function modelFilePieces(f, opts) {
   opts = opts || {};
   const nm = f.name || 'model', ext = (nm.match(/\.([a-z0-9]+)$/i) || ['', ''])[1].toLowerCase(), buf = await f.arrayBuffer();
-  if (ext === 'step' || ext === 'stp') throw new Error('Plik STEP to format z programów CAD - otwórz go w Bambu Studio (Datei → Exportieren → STL) i wczytaj STL.');
   let pieces;
-  if (ext === '3mf' || (new Uint8Array(buf, 0, 2)[0] === 0x50 && new Uint8Array(buf, 0, 2)[1] === 0x4b)) {
+  if (ext === 'step' || ext === 'stp' || /^ISO-10303-21/.test(new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(20, buf.byteLength))))) {
+    try { pieces = await parseStep(buf, nm); } finally { if (!opts.keepProg) progHide(); }
+  } else if (ext === '3mf' || (new Uint8Array(buf, 0, 2)[0] === 0x50 && new Uint8Array(buf, 0, 2)[1] === 0x4b)) {
     if (typeof DecompressionStream === 'undefined') throw new Error('Ta przeglądarka nie umie rozpakować 3MF - zaktualizuj Chrome.');
     pieces = await parse3mf(buf, nm);
   } else {

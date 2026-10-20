@@ -1760,6 +1760,7 @@ const FREE_SHAPES = {
   hinge: { name: 'Zawias', def: [40, 40, 6] },
   snap: { name: 'Zatrzask', def: [0, 8, 10] },
   vent: { name: 'Kratka wentylacyjna', def: [40, 25, 6] },
+  led: { name: 'Otwory na LED', def: [0, 0, 6] },
   bolt: { name: 'Śruba z gwintem', def: [0, 0, 0] },
   tnut: { name: 'Nakrętka z gwintem', def: [0, 0, 8] },
   tpl: { name: 'Z szablonu', def: [0, 0, 0] },
@@ -1813,6 +1814,7 @@ function shapeIcon(t, col, hole) {
   else if (t === 'bolt') { let th = ''; for (let y = 8; y < 32; y += 4) th += `<path d="M17 ${y}L31 ${y + 2.5}" stroke="${DD}" stroke-width="1.6"/>`; g = `<rect x="17" y="5" width="14" height="30" fill="${F(L)}"/>${th}<path d="M8 34h32l-3 9H11Z" fill="${F(M)}"/><path d="M8 34h32" stroke="${L}" stroke-width="1.5"/>`; }
   else if (t === 'tnut') g = `<path d="M14 7h20l10 17-10 17H14L4 24Z" fill="${F(M)}" stroke="${DD}" stroke-width="1"/><circle cx="24" cy="24" r="8.5" fill="#fff" stroke="${DD}" stroke-width="1.5"/><path d="M17 21a8 8 0 0 1 14 0M17 26a8 8 0 0 0 14 0" fill="none" stroke="${D}" stroke-width="1.3"/>`;
   else if (t === 'ventS') { let q = ''; for (let i = 0; i < 6; i++) q += `<rect x="${7 + i * 6.2}" y="11" width="3.6" height="26" rx="1.8" fill="${F(M)}" stroke="${DD}" stroke-width=".7"/>`; g = `<rect x="3" y="6" width="42" height="36" rx="3" fill="none" stroke="${D}" stroke-width="1.5" stroke-dasharray="3 2"/>${q}`; }
+  else if (t === 'led') { let q = ''; const cs = ['#e53935', '#43a047', '#1e88e5', '#fdd835']; for (let i = 0; i < 4; i++) q += `<circle cx="${9 + i * 10}" cy="24" r="4.2" fill="${hole ? cs[i] : M}" stroke="${DD}" stroke-width=".8"/><circle cx="${7.8 + i * 10}" cy="22.6" r="1.3" fill="#fff" opacity=".8"/>`; g = `<rect x="3" y="14" width="42" height="20" rx="3" fill="none" stroke="${D}" stroke-width="1.5" stroke-dasharray="3 2"/>${q}<path d="M9 34v6M19 34v6M29 34v6M39 34v6" stroke="${DD}" stroke-width="1.2"/>`; }
   else if (t === 'ventC') { let q = ''; for (let j = 0; j < 4; j++) for (let i = 0; i < (j % 2 ? 4 : 5); i++) q += `<circle cx="${8 + i * 8 + (j % 2 ? 4 : 0)}" cy="${12 + j * 7.5}" r="2.9" fill="${F(M)}" stroke="${DD}" stroke-width=".7"/>`; g = `<rect x="3" y="6" width="42" height="36" rx="3" fill="none" stroke="${D}" stroke-width="1.5" stroke-dasharray="3 2"/>${q}`; }
   else if (t === 'vent') { let q = ''; for (const [cx, cy] of [[14, 13], [24, 13], [34, 13], [19, 22], [29, 22], [14, 31], [24, 31], [34, 31], [19, 40], [29, 40], [9, 22], [39, 22]]) { const P = []; for (let i = 0; i < 6; i++) { const a = (i * 60 + 30) * Math.PI / 180; P.push((cx + 4.6 * Math.cos(a)).toFixed(1) + ',' + (cy + 4.6 * Math.sin(a)).toFixed(1)); } q += `<polygon points="${P.join(' ')}" fill="${F(M)}" stroke="${DD}" stroke-width=".8"/>`; } g = `<rect x="3" y="6" width="42" height="40" rx="3" fill="none" stroke="${D}" stroke-width="1.5" stroke-dasharray="3 2"/>${q}`; }
   else if (t === 'hinge') g = `<rect x="4" y="12" width="17" height="26" rx="2" fill="${F(M)}"/><rect x="27" y="12" width="17" height="26" rx="2" fill="${F(D)}"/><rect x="20" y="9" width="8" height="7" rx="3.5" fill="${F(L)}" stroke="${DD}"/><rect x="20" y="19" width="8" height="7" rx="3.5" fill="${F(DD)}" stroke="${DD}"/><rect x="20" y="29" width="8" height="7" rx="3.5" fill="${F(L)}" stroke="${DD}"/><circle cx="10" cy="25" r="2" fill="${DD}"/><circle cx="38" cy="25" r="2" fill="#fff" opacity=".6"/>`;
@@ -2068,10 +2070,37 @@ function freeTplPart(o) {
   const list = b.parts.filter(p => !p.ghost), p = list[o.part | 0] || list[0];
   return p ? { tris: p.tris, name: p.name } : null;
 }
+// LED: rozmiar otworu i polozenia srodkow (rzad wzdluz X, kolejne rzedy wzdluz Y)
+const LED_TYPES = { '5': ['LED 5 mm', 5, false], '3': ['LED 3 mm', 3, false], '8': ['LED 8 mm', 8, false], '10': ['LED 10 mm', 10, false], 'ws': ['WS2812B (5×5 mm)', 5, true], 'ws3': ['WS2812B mini (3,5×3,5 mm)', 3.5, true] };
+function ledLayout(o) {
+  const t = LED_TYPES[o.lt] || LED_TYPES['5'], D = t[1] + clamp(o.lclr == null ? 0.2 : o.lclr, 0, 1), n = clamp(Math.round(o.ln || 1), 1, 200), shape = o.lshape === 'ring' || o.lshape === 'arc' ? o.lshape : 'row';
+  const fit = o.lmode === 'fit', len = clamp(o.llen || 50, 1, 2000), minP = D + 0.4;
+  let pts = [], p = clamp(o.lp || 7, 1, 300), rows = 1, R = 0, ang = 0, grown = false;
+  if (shape === 'row') {
+    rows = clamp(Math.round(o.lrow || 1), 1, 50);
+    if (fit) p = len / n;   // rowno na dlugosci: takie same odstepy, na brzegach pol odstepu
+    if (p < minP) { p = minP; grown = true; }   // otwory nie moga na siebie wchodzic
+    for (let j = 0; j < rows; j++) for (let i = 0; i < n; i++) pts.push([-((n - 1) * p) / 2 + i * p, ((rows - 1) * p) / 2 - j * p, 0]);
+  } else {
+    // kolo albo luk: diody po okregu, odstep = po luku (srodek-srodek)
+    ang = shape === 'ring' ? 360 : clamp(o.lang || 180, 10, 359);
+    const th = ang * Math.PI / 180, gaps = shape === 'ring' ? n : Math.max(1, n - 1);
+    R = fit ? len / 2 : p * gaps / th;
+    if (n > 1) { const step = th / gaps, ch = 2 * R * Math.sin(step / 2); if (ch < minP) { R = minP / (2 * Math.sin(step / 2)); grown = true; } p = R * step; } else p = 0;
+    const a0 = shape === 'ring' ? Math.PI / 2 : Math.PI / 2 + th / 2;   // pierwsza dioda na gorze (kolo) / luk symetrycznie wokol gory
+    for (let i = 0; i < n; i++) { const a = a0 - i * th / gaps; pts.push([R * Math.cos(a), R * Math.sin(a), a]); }
+  }
+  let mn = [1e9, 1e9], mx = [-1e9, -1e9];
+  for (const q of pts) for (let k = 0; k < 2; k++) { mn[k] = Math.min(mn[k], q[k]); mx[k] = Math.max(mx[k], q[k]); }
+  const c = [(mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2];
+  pts = pts.map(q => [q[0] - c[0], q[1] - c[1], q[2]]);
+  const ext = t[2] && shape !== 'row' ? D / Math.SQRT2 : D / 2;   // kwadrat obrocony wzdluz kola moze wystawac troche bardziej
+  return { pts, D, sq: t[2], p, n, rows, R, ang, shape, grown, name: t[0], w: mx[0] - mn[0] + 2 * ext, d: mx[1] - mn[1] + 2 * ext };
+}
 // trojkaty klocka w jego osiach, srodek w 0,0,0 (+ prawdziwe w,d,h dla napisu / szablonu)
 const FREE_GEO = new Map();
 function freeLocal(o) {
-  const key = JSON.stringify([o.type, o.w, o.d, o.h, o.seg, o.top, o.wall, o.text, o.th, o.bold, o.font, o.tpl, o.tv, o.part, o.type === 'group' ? o.items : 0, o.meshId, o.teeth, o.bore, o.tdep, o.rad, o.cab, o.msz, o.head, o.tm, o.pitch, o.blen, o.bhead, o.clr, o.fil, o.kn, o.hclr, o.barb, o.cell, o.web, o.vpat, o.type === 'nut' ? fitDelta() : 0, o.type === 'mesh' ? MESH_CACHE.has(o.meshId) || !!(cur && cur.v && cur.v.meshes && cur.v.meshes[o.meshId]) : 0]);
+  const key = JSON.stringify([o.type, o.w, o.d, o.h, o.seg, o.top, o.wall, o.text, o.th, o.bold, o.font, o.tpl, o.tv, o.part, o.type === 'group' ? o.items : 0, o.meshId, o.teeth, o.bore, o.tdep, o.rad, o.cab, o.msz, o.head, o.tm, o.pitch, o.blen, o.bhead, o.clr, o.fil, o.kn, o.hclr, o.barb, o.cell, o.web, o.vpat, o.lt, o.ln, o.lp, o.lrow, o.lmode, o.llen, o.lclr, o.lshape, o.lang, o.type === 'nut' ? fitDelta() : 0, o.type === 'mesh' ? MESH_CACHE.has(o.meshId) || !!(cur && cur.v && cur.v.meshes && cur.v.meshes[o.meshId]) : 0]);
   const hit = FREE_GEO.get(key); if (hit) return hit;
   let T = [], w = o.w, d = o.d, h = o.h, comps = null;
   const N = clamp(Math.round(o.seg || 48), 3, 128);
@@ -2242,6 +2271,12 @@ function freeLocal(o) {
     if (!sh.length) add([[-sz / 2, -sz / 2], [sz / 2, -sz / 2], [sz / 2, sz / 2], [-sz / 2, sz / 2]]);
     T = []; for (const q of sh) for (const p of q) T.push(p);
     comps = [T];
+  } else if (o.type === 'led') {
+    // otwory na diody: LED 3 / 5 mm (okragle) albo WS2812B 5050 (kwadrat 5x5) - rzad (albo siatka), odstep srodek-srodek
+    const L = ledLayout(o), H2 = h / 2, D = L.D, Nl = Math.max(24, Math.min(N, 48));
+    T = [];
+    for (const [x, y, a] of L.pts) { const Q = []; if (L.sq) { const cs = Math.cos(a), sn = Math.sin(a), hd = D / 2; G.prismZ(Q, [[-hd, -hd], [hd, -hd], [hd, hd], [-hd, hd]].map(([u, v]) => [x + u * cs - v * sn, y + u * sn + v * cs]), -H2, H2); } else G.prismZ(Q, Array.from({ length: Nl }, (_, i) => [x + D / 2 * Math.cos(i / Nl * Math.PI * 2), y + D / 2 * Math.sin(i / Nl * Math.PI * 2)]), -H2, H2); for (const p of Q) T.push(p); }
+    { const bb = G.bbox(T); w = bb.size[0]; d = bb.size[1]; } comps = [T];
   } else if (o.type === 'snap') {
     // zatrzask (haczyk): sprezynujace ramie z zadziorem; zadzior wskakuje w okienko (Otwor kostka) w sciance
     const t = clamp(o.wall || 1.6, 0.8, 6), b = clamp(o.barb || 1, 0.3, 4), hb = Math.min(Math.max(2, b * 2.2), h * 0.5), foot = Math.max(3, t * 2);
@@ -2310,7 +2345,7 @@ function freeCutShells(shells, hc, stat) {
 }
 
 // wymiary liczone z parametrow (nie do ciagniecia myszka)
-const FREE_FIXED = { snap: ['w'], bolt: ['w', 'd', 'h'], tnut: ['w', 'd'], text: ['w', 'd'], screw: ['w', 'd'], nut: ['w', 'd'], clip: ['w', 'h'] };
+const FREE_FIXED = { snap: ['w'], bolt: ['w', 'd', 'h'], tnut: ['w', 'd'], text: ['w', 'd'], screw: ['w', 'd'], nut: ['w', 'd'], clip: ['w', 'h'], led: ['w', 'd'] };
 const freeFixed = (o, k) => !!(FREE_FIXED[o.type] && FREE_FIXED[o.type].includes(k));
 function freeFixSync(o) { const F = FREE_FIXED[o.type]; if (!F) return; const L = freeLocal(o); for (const k of F) o[k] = +L[k].toFixed(2); }
 // druga zebatka, ktora pasuje do zaznaczonej (ten sam modul, wlasciwa odleglosc osi, zab trafia w przerwe)
@@ -2347,7 +2382,7 @@ function freeClean(src, depth) {
       tpl: typeof o.tpl === 'string' ? o.tpl : undefined, tv: o.tv && typeof o.tv === 'object' ? o.tv : undefined, part: n(o.part, 0, 0, 20), lock: !!o.lock,
       teeth: n(o.teeth, 20, 6, 200), bore: n(o.bore, 5, 0, 500), tdep: n(o.tdep, 0, 0, 100), t2: n(o.t2, 20, 6, 200),
       rad: n(o.rad, 3, 0, 500), cab: n(o.cab, 6, 1, 200), msz: [0, 2, 2.5, 3, 4, 5, 6].includes(o.msz) ? o.msz : 3, head: ['stoz', 'walc', 'brak'].includes(o.head) ? o.head : 'stoz',
-      tm: n(o.tm, 10, 3, 60), pitch: n(o.pitch, 0, 0, 10), blen: n(o.blen, 25, 1, 400), bhead: ['hex', 'okr', 'brak'].includes(o.bhead) ? o.bhead : 'hex', clr: n(o.clr, 0.25, 0, 1), fil: n(o.fil, 0, 0, 500), kn: n(o.kn, 5, 3, 31), hclr: n(o.hclr, 0.4, 0.1, 1.5), barb: n(o.barb, 1, 0.3, 4), cell: n(o.cell, 5, 1.5, 60), web: n(o.web, 1.6, 0.6, 30), vpat: ['hex', 'slot', 'circle'].includes(o.vpat) ? o.vpat : 'hex',
+      tm: n(o.tm, 10, 3, 60), pitch: n(o.pitch, 0, 0, 10), blen: n(o.blen, 25, 1, 400), bhead: ['hex', 'okr', 'brak'].includes(o.bhead) ? o.bhead : 'hex', clr: n(o.clr, 0.25, 0, 1), fil: n(o.fil, 0, 0, 500), kn: n(o.kn, 5, 3, 31), hclr: n(o.hclr, 0.4, 0.1, 1.5), barb: n(o.barb, 1, 0.3, 4), cell: n(o.cell, 5, 1.5, 60), web: n(o.web, 1.6, 0.6, 30), vpat: ['hex', 'slot', 'circle'].includes(o.vpat) ? o.vpat : 'hex', lt: LED_TYPES[o.lt] ? o.lt : '5', ln: n(o.ln, 5, 1, 200), lp: n(o.lp, 7, 1, 300), lrow: n(o.lrow, 1, 1, 50), lmode: o.lmode === 'fit' ? 'fit' : 'pitch', llen: n(o.llen, 50, 1, 2000), lclr: n(o.lclr, 0.2, 0, 1), lshape: ['row', 'ring', 'arc'].includes(o.lshape) ? o.lshape : 'row', lang: n(o.lang, 180, 10, 359),
       mx: !!o.mx, my: !!o.my, mz: !!o.mz, meshId: typeof o.meshId === 'string' ? o.meshId.slice(0, 24) : undefined });
     if (o.type === 'group') { const last = v.objs[v.objs.length - 1]; last.items = freeClean({ objs: o.items || [] }, (depth || 0) + 1).objs; last.gx = n(o.gx, 0, -2000, 2000); last.gy = n(o.gy, 0, -2000, 2000); last.gz = n(o.gz, 0, -2000, 2000); if (!last.items.length) v.objs.pop(); }
   }
@@ -2503,7 +2538,7 @@ function freeUngroup() {
 function freeNew(type, extra) {
   const S = FREE_SHAPES[type], objs = freeObjs();
   const o = Object.assign({ id: uid(), type, name: S.name + ' ' + (objs.filter(x => x.type === type).length + 1), x: 0, y: 0, z: 0, w: S.def[0], d: S.def[1], h: S.def[2], rx: 0, ry: 0, rz: 0, hole: false,
-    color: SHAPE_COL[type] || (objs.find(x => !x.hole) || {}).color || FREE_COLORS[0][0], seg: (cur.v && cur.v.segDef) || 48, top: 0, wall: 2, text: 'Tekst', th: 8, bold: 'bold', part: 0, lock: false, teeth: 20, bore: 5, tdep: 0, t2: 20, rad: 3, cab: 6, msz: 3, head: 'stoz', tm: 10, pitch: 0, blen: 25, bhead: 'hex', clr: fitAdj(0.25, 0.05, 1), fil: 0, kn: 5, hclr: fitAdj(0.4, 0.15, 1.5), barb: 1, cell: 5, web: 1.6, vpat: 'hex' }, extra || {});
+    color: SHAPE_COL[type] || (objs.find(x => !x.hole) || {}).color || FREE_COLORS[0][0], seg: (cur.v && cur.v.segDef) || 48, top: 0, wall: 2, text: 'Tekst', th: 8, bold: 'bold', part: 0, lock: false, teeth: 20, bore: 5, tdep: 0, t2: 20, rad: 3, cab: 6, msz: 3, head: 'stoz', tm: 10, pitch: 0, blen: 25, bhead: 'hex', clr: fitAdj(0.25, 0.05, 1), fil: 0, kn: 5, hclr: fitAdj(0.4, 0.15, 1.5), barb: 1, cell: 5, web: 1.6, vpat: 'hex', lt: '5', ln: 5, lp: 7, lrow: 1, lmode: 'pitch', llen: 50, lclr: fitAdj(0.2, 0, 1), lshape: 'row', lang: 180 }, extra || {});
   if (type === 'snap' && !(extra && extra.wall)) o.wall = 1.6;
   if (type === 'hinge' && !(extra && 'msz' in extra)) o.msz = 0;
   if (type === 'tnut' && !(extra && extra.h)) o.h = +(0.8 * o.tm).toFixed(2);
@@ -2682,6 +2717,7 @@ function renderFreePanel() {
   h += `<button type="button" class="frB hole" data-add="hcyl" title="Dodaj walec jako otwór (np. na śrubę)">${shapeIcon('cyl', 0, true)}<span>Otwór walec</span></button>`;
   h += `<button type="button" class="frB hole" data-add="screw" title="Dziura na metalową śrubę M2-M6 z miejscem na łeb - wycina się w innym klocku">${shapeIcon('screw', 0, true)}<span>Dziura na śrubę</span></button>`;
   h += `<button type="button" class="frB hole" data-add="nut" title="Sześciokątne gniazdo na metalową nakrętkę M2-M6 - wycina się w innym klocku">${shapeIcon('nut', 0, true)}<span>Gniazdo nakrętki</span></button>`;
+  h += `<button type="button" class="frB hole" data-add="led" title="Otwory na diody LED 3 / 5 mm albo WS2812B - ile sztuk i co ile mm, odstępy liczą się same. Przeciągnij na ściankę obudowy">${shapeIcon('led', 0, true)}<span>Otwory LED</span></button>`;
   h += `<button type="button" class="frB hole" data-add="vent" title="Kratka wentylacyjna - plaster miodu. Przeciągnij na ściankę obudowy">${shapeIcon('vent', 0, true)}<span>Kratka plaster</span></button>`;
   h += `<button type="button" class="frB hole" data-add="ventS" title="Kratka wentylacyjna - szczeliny. Przeciągnij na ściankę obudowy">${shapeIcon('ventS', 0, true)}<span>Kratka szczeliny</span></button>`;
   h += `<button type="button" class="frB hole" data-add="ventC" title="Kratka wentylacyjna - kółka. Przeciągnij na ściankę obudowy">${shapeIcon('ventC', 0, true)}<span>Kratka kółka</span></button>`;
@@ -2710,7 +2746,7 @@ function renderFreePanel() {
     h += `<div class="pgh sub">Położenie (mm)</div>` + freeNum('x', 'X (w prawo)', o.x) + freeNum('y', 'Y (do tyłu)', o.y) + freeNum('z', 'Z (nad stołem)', o.z) + `<div class="pf"><span>&nbsp;</span><button type="button" class="btn sm" data-act="bed" title="Postaw na stole (Z = 0)">&#8615; Na stół</button></div>`;
     h += `<div class="pgh sub">Wymiary (mm)</div>`;
     { const L0 = FREE_FIXED[o.type] ? freeLocal(o) : null, val = (k) => freeFixed(o, k) ? L0[k] : o[k];
-      h += freeNum('w', o.type === 'hook' ? 'Wysięg X' : o.type === 'angle' ? 'Długość X' : 'Szerokość X', val('w'), 0.5, freeFixed(o, 'w')) + freeNum('d', o.type === 'angle' ? 'Stopka Y' : o.type === 'clip' || o.type === 'hook' ? 'Szerokość Y' : 'Głębokość Y', val('d'), 0.5, freeFixed(o, 'd')) + freeNum('h', o.type === 'text' ? 'Grubość liter' : o.type === 'screw' ? 'Długość otworu' : o.type === 'nut' ? 'Głębokość gniazda' : 'Wysokość Z', val('h'), 0.5, freeFixed(o, 'h')); }
+      h += freeNum('w', o.type === 'hook' ? 'Wysięg X' : o.type === 'angle' ? 'Długość X' : 'Szerokość X', val('w'), 0.5, freeFixed(o, 'w')) + freeNum('d', o.type === 'angle' ? 'Stopka Y' : o.type === 'clip' || o.type === 'hook' ? 'Szerokość Y' : 'Głębokość Y', val('d'), 0.5, freeFixed(o, 'd')) + freeNum('h', o.type === 'text' ? 'Grubość liter' : o.type === 'screw' ? 'Długość otworu' : o.type === 'nut' ? 'Głębokość gniazda' : o.type === 'led' ? 'Głębokość otworu Z' : 'Wysokość Z', val('h'), 0.5, freeFixed(o, 'h')); }
     if (!FREE_FIXED[o.type]) h += `<label class="pf chk"><input type="checkbox" data-k="lock"${o.lock ? ' checked' : ''}> zachowaj proporcje</label>`;
     if (o.type === 'tpl' || o.type === 'group') { const L0 = freeLocal(o); h += `<div class="pf full"><small>${o.type === 'tpl' ? 'Część z szablonu „' + esc(tplById(o.tpl).name) + '”' : 'Grupa z ' + o.items.length + ' klocków (otwory wycięte)'} - zmiana wymiaru <b>rozciąga</b> całość, razem z otworami. Prawdziwy rozmiar: ${f1(L0.w)} × ${f1(L0.d)} × ${f1(L0.h)} mm <button type="button" class="btn sm" data-act="unscale" style="height:22px;margin-left:4px">przywróć</button></small></div>`; }
     if (['cyl', 'cone', 'tube', 'sphere'].includes(o.type)) h += freeNum('seg', 'Gładkość (boki)', o.seg, 1, false, 'ilość boków na obwodzie - więcej = gładziej');
@@ -2724,6 +2760,14 @@ function renderFreePanel() {
     if (o.type === 'nut') h += `<label class="pf"><span>Śruba</span><select data-k="msz">${(false ? [[0, 'bez otworów']] : []).concat([2, 2.5, 3, 4, 5, 6].map(m => [m, 'M' + String(m).replace('.', ',')])).map(([v, t]) => `<option value="${v}"${+o.msz === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>` + `<div class="pf full"><small>Sześciokąt ma ${String(fitAdj(0.3, 0.1, 1)).replace('.', ',')} mm luzu${fitSaved() != null ? ' (z testu luzu)' : ''} - nakrętka wchodzi ciasno. Głębokość = nakrętka + 0,4 mm (+1 mm nad ścianką).</small></div>`;
     if (o.type === 'bolt') h += freeNum('tm', 'Gwint M (średnica)', o.tm, 1, false, 'normalne: M5 M6 M8 M10 M12 M14 M16 M20 M24 M30 - możesz wpisać też inną') + freeNum('pitch', 'Skok gwintu (0 = normalny ' + String(thrT(+o.tm)[0]).replace('.', ',') + ')', o.pitch || 0, 0.25) + freeNum('blen', 'Długość gwintu (mm)', o.blen, 1) + `<label class="pf"><span>Łeb</span><select data-k="bhead"><option value="hex"${o.bhead === 'hex' ? ' selected' : ''}>sześciokątny</option><option value="okr"${o.bhead === 'okr' ? ' selected' : ''}>okrągły</option><option value="brak"${o.bhead === 'brak' ? ' selected' : ''}>bez łba (pręt)</option></select></label><div class="pf full"><small>Śruba stoi <b>łbem na stole</b> - tak gwint drukuje się najładniej, bez podpór. Drukowany gwint: najlepiej od <b>M8</b> w górę.</small></div>` + `<div class="pf full"><button type="button" class="btn primary" data-act="thrAddNut" title="Dodaj nakrętkę z tym samym gwintem obok śruby">&#11043; Dodaj pasującą nakrętkę</button></div>`;
     if (o.type === 'tnut') h += freeNum('tm', 'Gwint M (średnica)', o.tm, 1, false, 'normalne: M5 M6 M8 M10 M12 M14 M16 M20 M24 M30 - możesz wpisać też inną') + freeNum('pitch', 'Skok gwintu (0 = normalny ' + String(thrT(+o.tm)[0]).replace('.', ',') + ')', o.pitch || 0, 0.25) + freeNum('clr', 'Luz gwintu (mm)', o.clr == null ? 0.25 : o.clr, 0.05, false, 'o ile gwint w nakrętce jest większy niż w śrubie') + `<div class="pf full"><small>Pasuje do „Śruby z gwintem” o tym samym M i skoku. Za ciasno - zwiększ luz (np. 0,35), za luźno - zmniejsz.</small></div>` + `<div class="pf full"><button type="button" class="btn primary" data-act="thrMatch" title="Ustaw ten sam gwint (M i skok) co najbliższa śruba z gwintem">&#8644; Dopasuj do śruby</button></div>`;
+    if (o.type === 'led') { const L = ledLayout(o), opt = (k, v, t) => `<option value="${v}"${o[k] === v ? ' selected' : ''}>${t}</option>`, rnd = L.shape !== 'row';
+      h += `<label class="pf"><span>Dioda</span><select data-k="lt">${Object.entries(LED_TYPES).map(([k, t]) => opt('lt', k, t[0])).join('')}</select></label>`
+        + `<label class="pf"><span>Układ</span><select data-k="lshape">${opt('lshape', 'row', 'w rzędzie')}${opt('lshape', 'ring', 'w kółko (całe koło)')}${opt('lshape', 'arc', 'po łuku')}</select></label>`
+        + freeNum('ln', rnd ? 'Ilość diod' : 'Ilość w rzędzie', o.ln, 1) + (L.shape === 'arc' ? freeNum('lang', 'Kąt łuku (°)', o.lang, 5, false, '180 = pół koła, 90 = ćwierć') : '')
+        + `<label class="pf"><span>Odstępy</span><select data-k="lmode">${opt('lmode', 'pitch', 'co ile mm')}${opt('lmode', 'fit', rnd ? 'według średnicy koła' : 'równo na długości')}</select></label>`
+        + (o.lmode === 'fit' ? freeNum('llen', rnd ? 'Średnica koła (mm)' : 'Długość (mm)', o.llen, 1, false, rnd ? 'mierzona przez środki diod - odstępy dopasują się same' : 'np. wewnętrzna długość obudowy - odstępy dopasują się same') : freeNum('lp', 'Odstęp środek-środek (mm)', o.lp, 0.5, false, rnd ? 'po łuku - koło samo się powiększy albo zmniejszy' : 'np. 7 mm'))
+        + (rnd ? '' : freeNum('lrow', 'Ilość rzędów', o.lrow, 1, false, '1 = jeden rząd; więcej = siatka, np. 8 × 8 WS2812B')) + freeNum('lclr', 'Luz otworu (mm)', o.lclr, 0.05, false, 'dioda za luźno - zmniejsz, za ciasno - zwiększ')
+        + `<div class="pf full"><small><b>${L.n * L.rows} ${L.n * L.rows === 1 ? 'otwór' : 'otworów'}</b> ${L.sq ? 'kwadratowych' : 'okrągłych'} ${f1(L.D)} mm, odstęp środek-środek <b>${f1(L.p)} mm</b>${o.lmode === 'fit' ? ' (policzony sam)' : ''}${rnd ? `, średnica koła <b>${f1(2 * L.R)} mm</b>${o.lmode !== 'fit' ? ' (policzona sama)' : ''}` : `. Cały rząd: ${f1(L.w)} mm`}${L.grown ? ' - <b>powiększone</b>, żeby otwory na siebie nie wchodziły' : ''}. Wysokość Z - jak głęboko wycina (grubsza niż ścianka). <b>Przeciągnij z panelu na ściankę</b> obudowy - sam się obróci.${L.sq ? (rnd ? ' Pierścienie WS2812B mają zwykle 8, 12, 16 albo 24 diody - wpisz średnicę z opisu pierścienia.' : ' WS2812B na pasku: zwykle co 16,7 mm (60 LED/m) albo 33,3 mm (30 LED/m).') : ''}</small></div>`; }
     if (o.type === 'vent') h += `<label class="pf"><span>Wzór</span><select data-k="vpat"><option value="hex"${o.vpat === 'hex' ? ' selected' : ''}>plaster miodu</option><option value="slot"${o.vpat === 'slot' ? ' selected' : ''}>szczeliny</option><option value="circle"${o.vpat === 'circle' ? ' selected' : ''}>kółka</option></select></label>` + freeNum('cell', o.vpat === 'slot' ? 'Szerokość szczeliny' : 'Wielkość oczka', o.cell, 0.5, false, 'np. 4-6 mm') + freeNum('web', 'Mostek między oczkami', o.web, 0.2, false, 'ile plastiku zostaje między dziurkami (min. ok. 1,2 mm)') + `<div class="pf full"><small>Szerokość X i głębokość Y to <b>pole kratki</b>, wysokość Z - jak głęboko wycina (grubsza niż ścianka). Najprościej: <b>przeciągnij kratkę z panelu na ściankę</b> obudowy - sama się obróci i wejdzie w ściankę. Obudowę z szablonu przenieś tu przyciskiem „do klocków”.</small></div>`;
     if (o.type === 'hinge') h += freeNum('kn', 'Ilość kolanek', o.kn, 2, false, 'nieparzysta: 3, 5, 7...') + freeNum('wall', 'Grubość skrzydeł', o.wall, 0.2) + freeNum('hclr', 'Luz w zawiasie (mm)', o.hclr == null ? 0.4 : o.hclr, 0.05, false, 'za ciasno (sklejony) - zwiększ, np. 0,5') + `<label class="pf"><span>Otwory na wkręty</span><select data-k="msz">${[[0, 'bez otworów'], [2, 'M2'], [2.5, 'M2,5'], [3, 'M3'], [4, 'M4']].map(([v, n]) => `<option value="${v}"${+o.msz === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label><div class="pf full"><small>Zawias drukuje się <b>w całości, płasko, rozłożony</b> - po wydruku od razu się zgina (trzpień siedzi w kolankach z luzem). Wysokość Z = średnica kolanek. Drukuj bez podpór; jak jest sklejony, przekręć mocno raz.</small></div>`;
     if (o.type === 'snap') h += freeNum('wall', 'Grubość ramienia', o.wall, 0.2, false, 'cieńsze = bardziej sprężyste') + freeNum('barb', 'Wysokość zadzioru (mm)', o.barb, 0.1, false, 'o ile haczyk wystaje') + `<div class="pf full"><small>Postaw zatrzask na pokrywie (ramię do góry). W ściance pudełka zrób okienko <b>Otwór kostka</b> na wysokości zadzioru - przy zamykaniu ramię się ugnie i zadzior wskoczy w okienko: <b>klik</b>. PETG sprężynuje lepiej niż PLA.</small></div>`;
@@ -2783,6 +2827,7 @@ function freeInput(el) {
   else if (k === 'bold') o.bold = el.value;
   else if (k === 'font') { o.font = TXT_FONTS[el.value] ? el.value : 'arial'; clearTimeout(frInT); frInT = setTimeout(() => { markDirty(); rebuild(false); renderFreePanel(); }, 60); return; }
   else if (k === 'head') o.head = el.value;
+  else if (k === 'lt' || k === 'lmode' || k === 'lshape') { o[k] = el.value; freeFixSync(o); clearTimeout(frInT); frInT = setTimeout(() => { markDirty(); rebuild(false); renderFreePanel(); }, 60); return; }
   else if (k === 'bhead') o.bhead = el.value;
   else if (k === 'vpat') { o.vpat = el.value; }
 
@@ -2790,7 +2835,7 @@ function freeInput(el) {
   else if (k === 'lock') o.lock = el.checked;
   else {
     const x = parseFloat(String(el.value).replace(',', '.')); if (!isFinite(x)) return;
-    const lim = { cell: [1.5, 60], web: [0.6, 30], kn: [3, 31], hclr: [0.1, 1.5], barb: [0.3, 4], fil: [0, 500], tm: [3, 60], pitch: [0, 10], blen: [1, 400], clr: [0, 1], t2: [6, 200], rad: [0, 500], cab: [1, 200], teeth: [6, 200], bore: [0, 500], tdep: [0, 100], w: [0.1, 1000], d: [0.1, 1000], h: [0.1, 1000], seg: [3, 128], top: [0, 100], wall: [0.4, 100], th: [2, 200], rx: [-360, 360], ry: [-360, 360], rz: [-360, 360] }[k] || [-2000, 2000];
+    const lim = { lang: [10, 359], ln: [1, 200], lp: [1, 300], lrow: [1, 50], llen: [1, 2000], lclr: [0, 1], cell: [1.5, 60], web: [0.6, 30], kn: [3, 31], hclr: [0.1, 1.5], barb: [0.3, 4], fil: [0, 500], tm: [3, 60], pitch: [0, 10], blen: [1, 400], clr: [0, 1], t2: [6, 200], rad: [0, 500], cab: [1, 200], teeth: [6, 200], bore: [0, 500], tdep: [0, 100], w: [0.1, 1000], d: [0.1, 1000], h: [0.1, 1000], seg: [3, 128], top: [0, 100], wall: [0.4, 100], th: [2, 200], rx: [-360, 360], ry: [-360, 360], rz: [-360, 360] }[k] || [-2000, 2000];
     const v = clamp(x, lim[0], lim[1]);
     if (o.type === 'gear' && (k === 'w' || k === 'd')) { o.w = o.d = v; freeSyncInputs(); clearTimeout(frInT); frInT = setTimeout(() => { markDirty(); rebuild(false); }, 120); return; }
     if (o.lock && ['w', 'd', 'h'].includes(k) && o[k] > 0) { const f = v / o[k]; for (const q of ['w', 'd', 'h']) if (q !== k) o[q] = +(o[q] * f).toFixed(3); freeSyncInputs(); }
@@ -2804,7 +2849,7 @@ function freeAddKey(a, pos) {
   const nH = freeObjs().filter(x => x.hole).length + 1;
   if (a === 'hbox') return freeAdd('box', Object.assign({ hole: true, name: 'Otwór ' + nH }, pos || {}));
   if (a === 'hcyl') return freeAdd('cyl', Object.assign({ hole: true, w: 6, d: 6, h: 30, z: -5, name: 'Otwór ' + nH }, pos || {}));
-  if (a === 'screw' || a === 'nut' || a === 'vent') return freeAdd(a, Object.assign({ hole: true }, pos || {}));
+  if (a === 'screw' || a === 'nut' || a === 'vent' || a === 'led') return freeAdd(a, Object.assign({ hole: true }, pos || {}));
   if (a === 'ventS' || a === 'ventC') { const o = freeAdd('vent', Object.assign({ hole: true, vpat: a === 'ventS' ? 'slot' : 'circle' }, pos || {})); o.name = (a === 'ventS' ? 'Kratka szczeliny ' : 'Kratka kółka ') + freeObjs().filter(x => x.type === 'vent').length; renderFreePanel(); return o; }
   return freeAdd(a, pos);
 }

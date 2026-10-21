@@ -494,17 +494,78 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
   const idbGet = (k) => tx('readonly', s => s.get(k)), idbPut = (k, v) => tx('readwrite', s => s.put(v, k)), idbDel = (k) => tx('readwrite', s => s.delete(k)), idbKeys = () => tx('readonly', s => s.getAllKeys());
   // ---- folder na dysku (File System Access API)
   const canFolder = typeof window.showDirectoryPicker === 'function';
-  async function sub(make) { return L.dir.getDirectoryHandle('pliki', { create: !!make }); }
+  // sciezka "A/B/plik" -> folder A/B (tworzony w razie potrzeby)
+  async function dirOf(parts, make) { let d = L.dir; for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: !!make }); return d; }
+  async function fsGetAt(path) { try { const parts = path.split('/'), d = await dirOf(parts, false); return await (await d.getFileHandle(parts[parts.length - 1])).getFile(); } catch (e) { return null; } }
+  async function fsPutAt(path, blob) { const parts = path.split('/'), d = await dirOf(parts, true), fh = await d.getFileHandle(parts[parts.length - 1], { create: true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); }
+  async function fsDelAt(path) { try { const parts = path.split('/'), d = await dirOf(parts, false); await d.removeEntry(parts[parts.length - 1]); return true; } catch (e) { return false; } }
+  // ---- kazdy projekt we wlasnym folderze: Magazyn/<nazwa>/..., Projekty/<nazwa>/..., reszta w pliki/
+  let PLACE = new Map();   // nazwa pliku -> folder
+  const dirSafe = (s) => String(s || '').replace(/[<>:"\/\\|?*\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 60).trim() || 'Model';
+  function placesFrom(D) {
+    const M = new Map(), used = new Set(), uniq = (top, nm) => { let b = top + '/' + dirSafe(nm), x = b, i = 2; while (used.has(x.toLowerCase())) x = b + ' (' + (i++) + ')'; used.add(x.toLowerCase()); return x; };
+    const lib = Object.values((D && D.lib) || {}).filter(it => it && it.id).sort((a, b) => (a.added || 0) - (b.added || 0) || String(a.id).localeCompare(b.id));
+    for (const it of lib) {
+      const dir = uniq('Magazyn', it.name), add = (f) => { if (f && typeof f === 'string' && !M.has(f)) M.set(f, dir); };
+      for (const F of it.files || []) { add(F.f); add(F.thumb); }
+      add(it.photo); add(it.cover); add(it.file);
+    }
+    const ms = Object.values((D && D.models) || {}).filter(m => m && m.id).sort((a, b) => String(a.id).localeCompare(b.id));
+    for (const m of ms) {
+      const ids = [], walk = (A) => { for (const o of A || []) { if (o && o.type === 'mesh' && o.meshId) ids.push(o.meshId); if (o && o.items) walk(o.items); } };
+      walk(m.v && m.v.objs); if (!ids.length) continue;
+      const dir = uniq('Projekty', m.name);
+      for (const id of ids) { const f = 'm_' + id + '.w3m'; if (!M.has(f)) M.set(f, dir); }
+    }
+    return M;
+  }
+  const where = (n) => (PLACE.get(n) || 'pliki') + '/' + n;
+  // nazwa 'pliki/x' (tak mowi reszta programu) -> prawdziwa sciezka w folderze
   async function fsGet(name) {
-    try { const parts = name.split('/'), d = parts.length > 1 ? await sub(false) : L.dir; const fh = await d.getFileHandle(parts[parts.length - 1]); return await fh.getFile(); }
-    catch (e) { return null; }
+    if (!name.startsWith('pliki/')) return fsGetAt(name);
+    const n = name.slice(6), w = where(n);
+    const f = (await fsGetAt(w)) || (w !== name ? await fsGetAt(name) : null);
+    if (f) return f;
+    const p = (await fsScan()).get(n); return p ? fsGetAt(p) : null;   // gdzies indziej (np. zanim porzadki skonczyly)
   }
   async function fsPut(name, blob) {
-    const parts = name.split('/'), d = parts.length > 1 ? await sub(true) : L.dir, fh = await d.getFileHandle(parts[parts.length - 1], { create: true });
-    const w = await fh.createWritable(); await w.write(blob); await w.close();
+    if (!name.startsWith('pliki/')) return fsPutAt(name, blob);
+    const n = name.slice(6), w = where(n); await fsPutAt(w, blob);
+    if (w !== name) await fsDelAt(name);
   }
-  async function fsDel(name) { try { const parts = name.split('/'), d = parts.length > 1 ? await sub(false) : L.dir; await d.removeEntry(parts[parts.length - 1]); } catch (e) {} }
-  async function fsList() { const out = []; try { const d = await sub(false); for await (const [n, h] of d.entries()) if (h.kind === 'file') out.push('pliki/' + n); } catch (e) {} return out; }
+  async function fsDel(name) { if (name.startsWith('pliki/')) await fsDelAt(where(name.slice(6))); await fsDelAt(name); }
+  // wszystkie pliki programu w folderze (jako 'pliki/x'), z miejscem gdzie leza
+  async function fsScan() {
+    const out = new Map();
+    const walk = async (d, path, depth) => { for await (const [n, h] of d.entries()) { if (h.kind === 'file') { if (depth > 0 && !out.has(n)) out.set(n, path + n); } else if (depth < 2 && (depth > 0 || ['pliki', 'Magazyn', 'Projekty'].includes(n))) await walk(h, path + n + '/', depth + 1); } };
+    try { await walk(L.dir, '', 0); } catch (e) {}
+    return out;
+  }
+  async function fsList() { return [...(await fsScan()).keys()].map(n => 'pliki/' + n); }
+  // porzadkowanie: przenies pliki tam, gdzie powinny byc (po zmianie nazwy, nowe pliki, stary folder pliki/), usun puste foldery
+  let tidyRun = Promise.resolve();
+  async function tidy() {
+    if (!folder()) return;
+    const have = await fsScan(); let moved = 0;
+    for (const [n, path] of have) {
+      const w = where(n); if (path === w) continue;
+      const f = await fsGetAt(path); if (!f) continue;
+      await fsPutAt(w, f); await fsDelAt(path); moved++;
+    }
+    for (const top of ['Magazyn', 'Projekty', 'pliki']) {
+      let td; try { td = await L.dir.getDirectoryHandle(top); } catch (e) { continue; }
+      const empty = async (d) => { for await (const _ of d.entries()) return false; return true; };
+      for await (const [n, h] of td.entries()) if (h.kind === 'directory' && await empty(h)) { try { await td.removeEntry(n); } catch (e) {} }
+      if (await empty(td)) { try { await L.dir.removeEntry(top); } catch (e) {} }
+    }
+    return moved;
+  }
+  function placesUpdate(blob) {
+    // kolejka: najpierw nowa mapa folderow, potem porzadki (program w tym czasie dziala dalej)
+    tidyRun = tidyRun.then(async () => { PLACE = placesFrom(JSON.parse(await blob.text())); await tidy(); }).catch(() => {});
+    return tidyRun;
+  }
+  L.tidy = () => tidyRun;
   // ---- wspolne: czytaj / zapisz (folder = glowny zapis; dane.json zawsze tez w przegladarce jako zapas)
   const folder = () => L.mode === 'folder' && L.dir;
   async function get(name) { if (folder()) { const f = await fsGet(name); if (f) return f; } const v = await idbGet(name).catch(() => null); return v || null; }
@@ -537,7 +598,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
       if (p === 'status') return new Response('ok');
       if (p === 'db') {
         if (m === 'GET') { const b = await get('dane.json'); return b ? new Response(b, { headers: { 'Content-Type': 'application/json' } }) : bad('brak danych', 404); }
-        const f = init.body.get('db'); await put('dane.json', f); return new Response('ok');
+        const f = init.body.get('db'); await put('dane.json', f); if (folder()) placesUpdate(f); return new Response('ok');
       }
       if (!/^[A-Za-z0-9_.-]{1,60}$/.test(n) && (p === 'f' || p === 'fdel')) return bad('zla nazwa');
       if (p === 'f') {
@@ -578,7 +639,8 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
     await idbPut('__dir', h); location.reload();
   };
   L.useBrowser = async () => { if (!confirm('Zapisywać tylko w przeglądarce (bez folderu na dysku)? Projekty w folderze zostaną tam, gdzie są.')) return; await idbDel('__dir'); location.reload(); };
-  L.ready = (async () => {
+  L.ready = (async () => { await start(); if (folder()) { const b = await fsGetAt('dane.json'); if (b) await placesUpdate(b); } })();
+  async function start() {
     try { db = await idbOpen(); } catch (e) { db = null; }
     if (!db) return;   // bez IndexedDB - i tak dziala, tylko bez zapisu
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
@@ -605,7 +667,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
         o.querySelector('#w3Browser').onclick = async () => { await idbPut('__asked', 1); hideBox(); res(); };
       });
     }
-  })();
+  }
   // ---- wyglad okienka
   const css = document.createElement('style');
   css.textContent = '#w3dLocalBox{position:fixed;inset:0;z-index:200;background:rgba(5,12,18,.6);display:flex;align-items:center;justify-content:center;padding:16px}#w3dLocalBox[hidden]{display:none}' +

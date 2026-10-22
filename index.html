@@ -4878,18 +4878,30 @@ function mf3Plate(items, title) {
   });
   // kazdy item: obiekt ze skladnikami (czesc + jej napis); ten sam zestaw czesci = ten sam obiekt (kopie)
   const asmId = new Map(); let nid = objs.length + 2, build = '';
+  // numer filamentu dla kazdej czesci: ten sam kolor = ten sam filament (1, 2, 3...) - slicer (Creality Print / Orca / Bambu) od razu przypisze kolory
+  const fil = new Map(), filOf = (o) => { const c = String(o.color || '').toLowerCase(); if (!fil.has(c)) fil.set(c, fil.size + 1); return fil.get(c); };
+  const cfg = ['<?xml version="1.0" encoding="UTF-8"?>\n<config>\n'];
   items.forEach((it, i) => {
     const key = refs[i].join(',');
-    if (!asmId.has(key)) { asmId.set(key, nid); out.push('<object id="' + nid + '" type="model" name="' + xe(it.name) + '"><components>' + refs[i].map(k => '<component objectid="' + (k + 2) + '"/>').join('') + '</components></object>\n'); nid++; }
+    if (!asmId.has(key)) {
+      asmId.set(key, nid); out.push('<object id="' + nid + '" type="model" name="' + xe(it.name) + '"><components>' + refs[i].map(k => '<component objectid="' + (k + 2) + '"/>').join('') + '</components></object>\n');
+      const e0 = filOf(objs[refs[i][0]]);
+      cfg.push('  <object id="' + nid + '">\n    <metadata key="name" value="' + xe(it.name) + '"/>\n    <metadata key="extruder" value="' + e0 + '"/>\n');
+      for (const k of refs[i]) cfg.push('    <part id="' + (k + 2) + '" subtype="normal_part">\n      <metadata key="name" value="' + xe(objs[k].name) + '"/>\n      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n      <metadata key="extruder" value="' + filOf(objs[k]) + '"/>\n    </part>\n');
+      cfg.push('  </object>\n');
+      nid++;
+    }
     build += '<item objectid="' + asmId.get(key) + '" transform="1 0 0 0 1 0 0 0 1 ' + num(it.x) + ' ' + num(it.y) + ' 0"/>';
   });
   out.push('</resources>\n<build>' + build + '</build>\n</model>\n');
+  cfg.push('</config>\n');
   for (const o of objs) delete o._k;
   const enc = new TextEncoder();
   return zipStore([
     { name: '[Content_Types].xml', data: enc.encode('<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>') },
     { name: '_rels/.rels', data: enc.encode('<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>') },
-    { name: '3D/3dmodel.model', data: enc.encode(out.join('')) }
+    { name: '3D/3dmodel.model', data: enc.encode(out.join('')) },
+    { name: 'Metadata/model_settings.config', data: enc.encode(cfg.join('')) }
   ]);
 }
 // rozklad wszystkich czesci na jednym stole (rzedami); null gdy sie nie miesci
@@ -4916,7 +4928,7 @@ function plateLayout() {
   const items = []; let y = bed[1] / 2 + totD / 2;
   for (const r of rows) {
     const x0 = bed[0] / 2 - r.w / 2;
-    for (const it of r.its) items.push({ name: it.g[0].name.split(' (')[0], parts: it.mp, x: x0 + it.rx + it.w / 2 - (it.bb.mn[0] + it.bb.mx[0]) / 2, y: y - r.d / 2 - (it.bb.mn[1] + it.bb.mx[1]) / 2 });
+    for (const it of r.its) items.push({ name: built.free ? (cur.name || 'Model') : it.g[0].name.split(' (')[0], parts: it.mp, x: x0 + it.rx + it.w / 2 - (it.bb.mn[0] + it.bb.mx[0]) / 2, y: y - r.d / 2 - (it.bb.mn[1] + it.bb.mx[1]) / 2 });
     y -= r.d + gap;
   }
   return { items, n: list.length };

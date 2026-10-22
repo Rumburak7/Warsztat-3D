@@ -4196,7 +4196,7 @@ function freeLiftStart(e) {
     const q = freePlaneV(freeRay(ev), D); if (!q) return;
     if (!D.moved) { freePush(); D.moved = true; }
     const dz = q[2] - D.z0;
-    for (const s of D.start) s.o.z = freeSnap(s.z + dz);
+    for (const s of D.start) s.o.z = +(s.z + freeSnap(dz)).toFixed(4);
     for (const M of FR.meshes || []) { const o = freeObj(M.id); if (o) { M.m.position.set(o.x, o.z, -o.y); if (M.hb) M.hb.update(); } }
     freeSyncInputs(); v3Req();
   };
@@ -4221,12 +4221,12 @@ function freeMove(e) {
     const p = planeZ(R, D.z); if (!p) return;
     if (!D.moved) { freePush(); D.moved = true; }
     const dx = p[0] - D.p0[0], dy = p[1] - D.p0[1];
-    for (const s of D.start) { const o = freeObj(s.id); o.x = freeSnap(s.x + dx); o.y = freeSnap(s.y + dy); }
+    for (const s of D.start) { const o = freeObj(s.id); o.x = +(s.x + freeSnap(dx)).toFixed(4); o.y = +(s.y + freeSnap(dy)).toFixed(4); }   // krok siatki liczony od miejsca startu
   } else {
     const p = freePlaneV(R, D); if (!p) return;
     if (!D.moved) { freePush(); D.moved = true; }
     const dz = p[2] - D.z0;
-    for (const s of D.start) { const o = freeObj(s.id); o.z = freeSnap(s.z + dz); }
+    for (const s of D.start) { const o = freeObj(s.id); o.z = +(s.z + freeSnap(dz)).toFixed(4); }
   }
   // tylko przesuniecie siatek - bez przeliczania
   for (const M of FR.meshes) { const o = freeObj(M.id); if (!o) continue; M.m.position.set(o.x, o.z, -o.y); if (M.hb) M.hb.update(); }
@@ -4301,9 +4301,11 @@ document.addEventListener('keydown', e => {
   else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(k) && FR.sel.length) {
     freePush();
     for (const id of FR.sel) { const o = freeObj(id); if (!o) continue;
-      if (k === 'ArrowLeft') o.x = freeSnap(o.x - step); else if (k === 'ArrowRight') o.x = freeSnap(o.x + step);
-      else if (k === 'ArrowUp') o.y = freeSnap(o.y + step); else if (k === 'ArrowDown') o.y = freeSnap(o.y - step);
-      else if (k === 'PageUp') o.z = freeSnap(o.z + step); else o.z = freeSnap(o.z - step); }
+      // dokladnie o krok od miejsca, gdzie klocek stoi (bez przyciagania do kresek siatki - inaczej 5 x 1 mm nie dawalo 5 mm)
+      const mv = (v, d) => +((v || 0) + d).toFixed(4);
+      if (k === 'ArrowLeft') o.x = mv(o.x, -step); else if (k === 'ArrowRight') o.x = mv(o.x, step);
+      else if (k === 'ArrowUp') o.y = mv(o.y, step); else if (k === 'ArrowDown') o.y = mv(o.y, -step);
+      else if (k === 'PageUp') o.z = mv(o.z, step); else o.z = mv(o.z, -step); }
     freeChanged(false);
   } else done = false;
   if (done) e.preventDefault();

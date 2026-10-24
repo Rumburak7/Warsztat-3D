@@ -2696,7 +2696,13 @@ function freeLocal(o) {
   return res;
 }
 // po obrocie, przesuniete tak, ze srodek x,y = 0 i spod z = 0 (polozenie klocka to x,y,z)
-function freePlaced(o) {
+// ksztalt po obrocie liczony raz i zapamietany - przesuwanie klocka nie liczy go od nowa (duze pliki STL!)
+const FREE_PL = new Map();
+const GEO_SKIP = new Set(['x', 'y', 'z', 'name', 'lock', 'color', 'hole', 'id']);
+// tylko pola samego klocka (np. polozenie klockow w grupie zostaje w kluczu!)
+const freeGeoKey = (o) => MESH_VER + '|' + JSON.stringify(o, function (k, v) { return this === o && GEO_SKIP.has(k) ? undefined : v; });
+function freePlacedShape(o) {
+  const key = freeGeoKey(o), hit = FREE_PL.get(key); if (hit) return hit;
   const L = freeLocal(o);
   const rx = (o.rx || 0) * Math.PI / 180, ry = (o.ry || 0) * Math.PI / 180, rz = (o.rz || 0) * Math.PI / 180;
   const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry), cz = Math.cos(rz), sz = Math.sin(rz);
@@ -2711,10 +2717,20 @@ function freePlaced(o) {
   const fw = (A) => { if (!flip) return A; const B = new Array(A.length); for (let i = 0; i < A.length; i += 3) { B[i] = A[i]; B[i + 1] = A[i + 2]; B[i + 2] = A[i + 1]; } return B; };
   const rot = !!(rx || ry || rz || scl || mir), T = rot ? fw(L.T.map(RS)) : L.T;
   const bb = G.bbox(T.length ? T : [[0, 0, 0]]), off = [-(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -bb.mn[2]];
-  const P = G.move(T, ...off);
+  const res = { P: G.move(T, ...off), size: bb.size, L, scale: scl || [1, 1, 1], RS, rot, off, fw, comps: null, key };
+  if (FREE_PL.size > 200) FREE_PL.clear();
+  FREE_PL.set(key, res);
+  return res;
+}
+function freePlaced(o) {
+  const H = freePlacedShape(o), off = H.off, L = H.L, rot = H.rot, RS = H.RS;
   // map: punkt w osiach klocka -> swiat
-  return { T: P, size: bb.size, L, scale: scl || [1, 1, 1], map: (p) => { const q = rot ? RS(p) : p; return [q[0] + off[0] + o.x, q[1] + off[1] + o.y, q[2] + off[2] + o.z]; },
-    comps: () => L.comps.length === 1 && L.comps[0] === L.T ? [G.move(P, o.x, o.y, o.z)] : L.comps.map(t => G.move(rot ? fw(t.map(RS)) : t, off[0] + o.x, off[1] + o.y, off[2] + o.z)) };
+  return { T: H.P, size: H.size, L, scale: H.scale, key: H.key, map: (p) => { const q = rot ? RS(p) : p; return [q[0] + off[0] + o.x, q[1] + off[1] + o.y, q[2] + off[2] + o.z]; },
+    comps: () => {
+      if (L.comps.length === 1 && L.comps[0] === L.T) return [G.move(H.P, o.x, o.y, o.z)];
+      if (!H.comps) H.comps = L.comps.map(t => G.move(rot ? H.fw(t.map(RS)) : t, off[0], off[1], off[2]));
+      return H.comps.map(t => G.move(t, o.x, o.y, o.z));
+    } };
 }
 const freeWorld = (o) => { const P = freePlaced(o); return G.move(P.T, o.x, o.y, o.z); };
 const freeWorldComps = (o) => freePlaced(o).comps();
@@ -2857,7 +2873,7 @@ function freeScheduleCompute() {
       FR.busy = false;
       if (cur && cur.tpl === 'free') { rebuild(false, true); }
     }, 30);
-  }, 650);
+  }, FR.cache.ms > 800 ? 2500 : 650);   // dlugie liczenie (duze pliki STL) - poczekaj, az skonczysz przesuwac
 }
 // szablon "free" dla reszty programu
 const FREE_TPL = { id: 'free', name: 'Własny model', icon: 'free', free: true,
@@ -2871,9 +2887,16 @@ const FREE_TPL = { id: 'free', name: 'Własny model', icon: 'free', free: true,
     else {
       // otwory liczone za chwile (w tle) - na razie same bryly
       pending = true;
-      const all = []; for (const o of objs) if (!o.hole) for (const p of freeWorld(o)) all.push(p);
-      const bb = G.bbox(all.length ? all : [[0, 0, 0]]);
-      parts = all.length ? [{ name: 'Model (liczę otwory…)', file: 'model', tris: G.move(all, -(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -bb.mn[2]), asmTris: all, count: 1, color: COL[1], asm: [[0, 0, 0]], lazy: true }] : [];
+      // tylko wymiary z klockow (szybko) - trojkaty skladamy dopiero, gdy ktos ich naprawde potrzebuje
+      const sol = objs.filter(o => !o.hole), mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+      for (const o of sol) { const z = freePlaced(o).size; mn[0] = Math.min(mn[0], o.x - z[0] / 2); mn[1] = Math.min(mn[1], o.y - z[1] / 2); mn[2] = Math.min(mn[2], o.z); mx[0] = Math.max(mx[0], o.x + z[0] / 2); mx[1] = Math.max(mx[1], o.y + z[1] / 2); mx[2] = Math.max(mx[2], o.z + z[2]); }
+      parts = [];
+      if (sol.length) {
+        const sz = [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]], lp = { name: 'Model (liczę otwory…)', file: 'model', count: 1, color: COL[1], asm: [[0, 0, 0]], lazy: true, bb0: { mn: [-sz[0] / 2, -sz[1] / 2, 0], mx: [sz[0] / 2, sz[1] / 2, sz[2]], size: sz } };
+        Object.defineProperty(lp, 'asmTris', { get() { if (!this._all) { const all = []; for (const o of sol) for (const p of freeWorld(o)) all.push(p); this._all = all; } return this._all; } });
+        Object.defineProperty(lp, 'tris', { get() { if (!this._tr) { const A = this.asmTris, b = G.bbox(A.length ? A : [[0, 0, 0]]); this._tr = G.move(A, -(b.mn[0] + b.mx[0]) / 2, -(b.mn[1] + b.mx[1]) / 2, -b.mn[2]); } return this._tr; } });
+        parts.push(lp);
+      };
       freeScheduleCompute();
     }
     const nH = objs.filter(o => o.hole).length;
@@ -4107,6 +4130,16 @@ function bedLabels(root, bed) {
 }
 
 /* ---------- widok 3D: klocki + zaznaczanie myszka ---------- */
+// gotowa geometria do podgladu - jedna na ksztalt, nie liczona od nowa przy kazdym ruchu
+const FREE_VG = new Map();
+function freeGeomCached(P) {
+  let g = FREE_VG.get(P.key);
+  if (!g) {
+    if (FREE_VG.size > 150) { for (const x of FREE_VG.values()) x.dispose(); FREE_VG.clear(); }
+    g = smoothGeom(P.T, 40); g.userData.keep = true; FREE_VG.set(P.key, g);
+  }
+  return g;
+}
 function freeView(root, resetCam) {
   const bed = printer().bed;
   bedSurface(root, bed);
@@ -4116,7 +4149,7 @@ function freeView(root, resetCam) {
     const P = freePlaced(o), on = FR.sel.includes(o.id);
     const mat = o.hole ? new THREE.MeshStandardMaterial({ color: '#d0453a', roughness: 0.6, transparent: true, opacity: on ? 0.55 : 0.38, depthWrite: false, side: THREE.DoubleSide })
       : new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.5, metalness: 0.05, side: THREE.DoubleSide, emissive: on ? '#3a2a00' : '#000000' });
-    const m = new THREE.Mesh(smoothGeom(P.T, 40), mat); m.position.set(o.x, o.z, -o.y); root.add(m);
+    const m = new THREE.Mesh(freeGeomCached(P), mat); m.position.set(o.x, o.z, -o.y); root.add(m);
     FR.meshes.push({ id: o.id, m, T: P.T, size: P.size });
     if (on) {
       const hb = new THREE.BoxHelper(m, o.hole ? 0xd0453a : 0xff9a1f); root.add(hb); FR.meshes[FR.meshes.length - 1].hb = hb;
@@ -4473,9 +4506,10 @@ function costCfg() {
 // szacunek dla jednej sztuki: gramy i sekundy (bez startu) - z objetosci, powierzchni i wysokosci
 function printEst(p) {
   const c = costCfg(), pr = printer(), mat = DB.settings.mat, dens = DENS[mat] || 1.24, V = p.vol || 0;
-  if (!V) return { g: 0, s: 0, layers: 0, V: 0 };
-  let A = p.area || 0; const T = A ? [] : (p.tris || []);
+  if (!V || p.lazy) return { g: 0, s: 0, layers: 0, V: 0 };   // otwory jeszcze sie licza - szacunek za chwile
+  let A = p.area || (p._area && p._at === p.tris ? p._area : 0); const T = A ? [] : (p.tris || []);
   for (let i = 0; i < T.length; i += 3) { const a = T[i], b = T[i + 1], d = T[i + 2]; const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2]; A += Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2; }
+  if (T.length && A) { p._area = A; p._at = p.tris; }
   if (!A) A = 6 * Math.pow(V, 2 / 3);
   const lh = c.layer, wallT = c.walls * 0.42, topT = Math.max(0.8, 4 * lh), sh = (wallT + topT) / 2;   // srednia grubosc skorupy
   const Vs = Math.min(V, A * sh), Vi = (V - Vs) * c.infill / 100, Vp = Vs + Vi;
@@ -4658,7 +4692,7 @@ function rebuild(resetCam, keepEditor) {
   lastBuiltV = JSON.stringify(cur.v);
   try { built = t.build(cur.v); }
   catch (e) { console.error(e); built = { parts: [], warn: ['Błąd liczenia modelu: ' + e.message], info: [], bom: [] }; }
-  for (const p of built.parts) { p.bb = G.bbox(p.tris); p.vol = p.ghost ? 0 : G.volume(p.tris); }
+  for (const p of built.parts) { if (p.lazy && p.bb0) { p.bb = p.bb0; p.vol = 0; continue; } if (p.bb && p.vol != null && p._t === p.tris) continue; p.bb = G.bbox(p.tris); p.vol = p.ghost ? 0 : G.volume(p.tris); p._t = p.tris; }   // gotowe czesci (z pamieci) nie licza sie drugi raz
   if (Object.keys(CUTS).length) { built.parts = cutApply(built.parts); for (const p of built.parts) if (!p.bb) { p.bb = G.bbox(p.tris); p.vol = G.volume(p.tris); } }
   renderParts();
   if (!keepEditor) renderEditor();
@@ -5216,7 +5250,7 @@ function v3Req() {
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function v3Build(resetCam) {
   if (!v3.r || !built) return;
-  if (v3.root) { v3.scene.remove(v3.root); v3.root.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+  if (v3.root) { v3.scene.remove(v3.root); v3.root.traverse(o => { if (o.geometry && !(o.geometry.userData && o.geometry.userData.keep)) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
   const root = v3.root = new THREE.Group(); v3.scene.add(root);
   v3.scene.background = new THREE.Color(cssVar('--view') || '#dfe6ea');
   const add = (T, color, dx, dy, dz, opa) => {

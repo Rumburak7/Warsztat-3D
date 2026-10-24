@@ -4335,7 +4335,7 @@ function freeRotStart(e, ax) {
     const a = ang(ev); let da = a - D.last; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; D.acc += da; D.last = a;
     const raw = sg * -D.acc * 180 / Math.PI;
     let deg = ev.shiftKey ? Math.round(raw / 15) * 15 : Math.round(raw);
-    if (!ev.shiftKey) { const m = Math.round(raw / 45) * 45; if (Math.abs(raw - m) <= 2) deg = m; }   // lekkie "przyklejenie" do 0/45/90/...
+    if (!ev.shiftKey) { const m = Math.round(raw / 45) * 45; if (Math.abs(raw - m) <= 0.75) deg = m; }   // bardzo lekkie przyklejenie do 0/45/90 - 1°, 44°, 46° itd. dalej osiagalne
     draw(deg);
     if (deg === D.deg) return; D.deg = deg;
     if (!D.moved) { freePush(); D.moved = true; }

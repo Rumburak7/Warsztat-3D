@@ -2124,7 +2124,7 @@ const CSG = (() => {
     }
     if (!near.length) return { T: AT, ok: true };
     if (maxNear && near.length / 3 > maxNear) return { T: AT, ok: false };
-    // siatka XY do testu "czy punkt jest w srodku A" (promien pionowo w gore, liczymy przeciecia)
+    // siatka XY do testu "czy punkt jest w srodku A" (promien pionowo w gore, sciany w gore +1, w dol -1)
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     for (const p of AT) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
     const nT = AT.length / 3, NG = Math.max(1, Math.min(400, Math.round(Math.sqrt(nT / 4)))), cw = Math.max((x1 - x0) / NG, 1e-6), ch = Math.max((y1 - y0) / NG, 1e-6);
@@ -2144,9 +2144,9 @@ const CSG = (() => {
         const d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]); if (Math.abs(d) < 1e-14) continue;
         const u = ((b[1] - c[1]) * (px - c[0]) + (c[0] - b[0]) * (py - c[1])) / d, v = ((c[1] - a[1]) * (px - c[0]) + (a[0] - c[0]) * (py - c[1])) / d, w = 1 - u - v;
         if (u < 0 || v < 0 || w < 0) continue;
-        if (u * a[2] + v * b[2] + w * c[2] > pz) n++;
+        if (u * a[2] + v * b[2] + w * c[2] > pz) n += ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) > 0 ? 1 : -1;
       }
-      return (n & 1) === 1;
+      return n > 0;   // liczba nawiniec (nie parzystosc): zachodzace na siebie poklejone kawalki tez licza sie jako "w srodku"
     };
     const H = fromTris(HT), hb = build(node(), H.map(P => poly(P.v.map(v => v.slice()), P.p)));
     // 1) trojkaty A przy otworze: wyrzucamy to, co lezy w srodku otworu
@@ -2805,7 +2805,7 @@ function freeCutShells(shells, hc, stat) {
     if (!C.length) continue;
     const cb = G.bbox(C), hs = hc.filter(h => h.T.length && bbHit(h.bb, cb));
     if (!hs.length) { out.push(C); continue; }
-    if (C.length / 3 > 6000) {
+    if (C.length / 3 > 0) {
       // duzy model (np. wczytany STL albo poklejone kawalki): wycinamy tylko w poblizu otworu
       let T = C, big = false;
       for (const h of hs) { const r = CSG.subtractLocal(T, h.T, 60000); if (!r.ok) { big = true; continue; } T = r.T; if (stat) stat.cut++; }

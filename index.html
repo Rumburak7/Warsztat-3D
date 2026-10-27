@@ -952,6 +952,7 @@ const ICONS = {
   shield: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 9 17 5 29 9"/><path d="M5 15 17 11 29 15"/><path d="M5 21 17 17 29 21"/><path d="M5 27h24"/></g><path d="M8 9v18M26 9v18" stroke="#c98a3a" stroke-width="2"/></svg>',
   box: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12 17 6l13 6v12l-13 6-13-6z"/><path d="M4 12l13 6 13-6M17 18v12"/></g><rect x="24" y="17" width="4" height="3" fill="#c98a3a"/></svg>',
   mold: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 13v14h28V13"/><path d="M3 13h4M27 13h4"/></g><path d="M17 9.5l2.3 4.7 5.2.8-3.8 3.6.9 5.1L17 21.3l-4.6 2.4.9-5.1-3.8-3.6 5.2-.8z" fill="#c98a3a"/></svg>',
+  organizer: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="6" width="26" height="22" rx="3"/><path d="M13 6v22M21 6v22M4 17h26"/></g></svg>',
   drawer: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="26" height="12" rx="1.5"/><rect x="4" y="18" width="26" height="12" rx="1.5"/></g><rect x="13" y="8.5" width="8" height="3" rx="1.5" fill="#c98a3a"/><rect x="13" y="22.5" width="8" height="3" rx="1.5" fill="#c98a3a"/></svg>',
   tftcase: '<svg viewBox="0 0 34 34"><path d="M3 28V14a7 7 0 0 1 7-7h14a7 7 0 0 1 7 7v14z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="10" y="11" width="14" height="10" rx="1" fill="#c98a3a"/><path d="M5 12l2 2M8 9l2 2M29 12l-2 2M26 9l-2 2" stroke="currentColor" stroke-width="1.6"/></svg>',
   wall: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 4v26h16v-8"/><path d="M8 30h16"/></g><rect x="12" y="9" width="7" height="19" rx="1.5" fill="#c98a3a"/></svg>',
@@ -1486,6 +1487,106 @@ const TPLS = [
     return { parts, warn,
       info: [['Moduł (obudowa)', f1(oX) + ' × ' + f1(oY) + ' × ' + f1(oZ) + ' mm' + (J ? ' + zamki' : '')], ['Szuflada w środku', f1(v.iW) + ' × ' + f1(v.iD) + ' × ' + f1(v.iH) + ' mm']],
       bom: J ? ['moduły wsuwasz: na górę od przodu, na bok od góry - zamki są w tych samych miejscach w każdym module', 'skrajne moduły regału: ustaw gładką górę / bok - wtedy na zewnątrz nie ma zamków ani rowków'] : [] };
+  } },
+/* ---------- 2a. pudelko z przegrodkami (organizer) ---------- */
+{ id: 'organizer', name: 'Pudełko z przegródkami', icon: 'organizer',
+  desc: 'Zwykłe pudełko na drobiazgi z przegródkami. Przegródki na stałe albo wyjmowane (wsuwane w rowki) - możesz je potem dokładać i wyjmować. Do tego pokrywka wciskana.',
+  p: [
+    { k: 'iW', label: 'Wnętrze - szerokość (X)', def: 120, min: 20, max: 340, step: 1, group: 'Wnętrze pudełka' },
+    { k: 'iD', label: 'Wnętrze - głębokość (Y)', def: 80, min: 20, max: 340, step: 1 },
+    { k: 'iH', label: 'Wnętrze - wysokość (Z)', def: 35, min: 5, max: 250, step: 1 },
+    { k: 'wall', label: 'Grubość ścianek i dna', def: 1.6, min: 1.2, max: 4, step: 0.2, group: 'Ścianki' },
+    { k: 'rad', label: 'Zaokrąglenie rogów', def: 4, min: 0, max: 30, step: 0.5, hint: '0 = kanciaste' },
+    { k: 'nX', label: 'Przegródki w poprzek', def: 2, min: 0, max: 20, step: 1, group: 'Przegródki', hint: 'dzielą szerokość X: 2 = trzy przedziałki' },
+    { k: 'nY', label: 'Przegródki wzdłuż', def: 1, min: 0, max: 20, step: 1, hint: 'dzielą głębokość Y' },
+    { k: 'dType', label: 'Rodzaj przegródek', def: 'slot', opts: [['slot', 'wyjmowane - wsuwane w rowki (drukowane osobno)'], ['fixed', 'na stałe (razem z pudełkiem)']] },
+    { k: 'slotMode', label: 'Rowki w ściankach', def: 'even', opts: [['even', 'tylko tam, gdzie przegródki (można krzyżować)'], ['pitch', 'co kilka mm - przegródki wkładasz gdzie chcesz']], show: (v) => v.dType === 'slot', hint: 'przy „co kilka mm” przegródki tylko w jednym kierunku' },
+    { k: 'pitch', label: 'Rowki co (mm)', def: 15, min: 6, max: 100, step: 1, show: (v) => v.dType === 'slot' && v.slotMode === 'pitch' },
+    { k: 'dT', label: 'Grubość przegródki', def: 1.6, min: 1, max: 4, step: 0.2 },
+    { k: 'dLow', label: 'Przegródki niższe od brzegu o', def: 0, min: 0, max: 200, step: 1, hint: 'mm - niższe łatwiej wyjąć palcami' },
+    { k: 'lid', label: 'Pokrywka', def: 'none', opts: [['none', 'bez pokrywki'], ['lip', 'wciskana (z kołnierzem)']], group: 'Pokrywka' }
+  ],
+  build(v) {
+    const warn = [], t = v.wall, iW = v.iW, iD = v.iD, iH = v.iH, oX = iW + 2 * t, oY = iD + 2 * t, oZ = iH + t;
+    const R = Math.max(0, Math.min(v.rad || 0, Math.min(oX, oY) / 2 - 0.5)), Ri = Math.max(0, R - t);
+    const P = (T) => CSG.fromTris(T), BX = (x0, y0, z0, x1, y1, z1) => P(G.box([], x0, y0, z0, x1, y1, z1));
+    const lid = v.lid === 'lip', lth = 1.6, lipT = 1.2, lipH = 4, gap = lidGap();
+    const slot = v.dType === 'slot', dT = v.dT;
+    const topZ = oZ - (lid ? lipH + 0.5 : 0) - (v.dLow || 0);          // wierzch przegrodek i listewek
+    const hP = topZ - t;
+    let nX = Math.round(v.nX || 0), nY = Math.round(v.nY || 0);
+    if (hP < 3 && (nX || nY)) { warn.push('Przegródki wychodzą niższe niż 3 mm - zmniejsz „niższe od brzegu” albo zwiększ wysokość.'); nX = nY = 0; }
+    const pitchMode = slot && v.slotMode === 'pitch';
+    if (pitchMode && nX && nY) { warn.push('Przy rowkach „co kilka mm” przegródki mogą być tylko w jednym kierunku - przegródki wzdłuż pominięte.'); nY = 0; }
+    // ---- pudelko
+    const outer = G.rbox([], R, oX, oY, 0, 0, 0, oX, oY, oZ);
+    const cav = G.move(G.rbox([], Ri, iW, iD, 0, 0, 0, iW, iD, iH + 1), t, t, t);
+    let B = CSG.subtract(P(outer), P(cav));
+    const even = (n, span) => Array.from({ length: n }, (_, i) => t + span * (i + 1) / (n + 1));
+    const rw = 1.2, rp = 1.2, gc = fitSaved() == null ? 0.25 : +clamp(fitSaved() + 0.05, 0.1, 0.6).toFixed(2), endC = 0.3;
+    const minEdge = Ri + rw + dT / 2 + 1;
+    let gX = [], gY = [];                                     // polozenia rowkow
+    const xs = even(nX, iW), ys = even(nY, iD);
+    if (slot) {
+      if (pitchMode) {
+        const n = nX ? 'x' : 'y', span = n === 'x' ? iW : iD, L = [];
+        for (let k = 1; t + k * v.pitch <= t + span - minEdge + 0.01; k++) if (k * v.pitch >= minEdge - 0.01) L.push(t + k * v.pitch);
+        if (n === 'x') gX = L; else gY = L;
+        if (!L.length) warn.push('Rowki co ' + f1(v.pitch) + ' mm nie mieszczą się - zmniejsz odstęp albo zaokrąglenie rogów.');
+      } else { gX = xs; gY = ys; }
+      const ribs = [];
+      for (const x of gX) for (const [y0, y1] of [[t - 0.01, t + rp], [t + iD - rp, t + iD + 0.01]]) {
+        G.box(ribs, x - dT / 2 - gc - rw, y0, t - 0.01, x - dT / 2 - gc, y1, topZ);
+        G.box(ribs, x + dT / 2 + gc, y0, t - 0.01, x + dT / 2 + gc + rw, y1, topZ);
+      }
+      for (const y of gY) for (const [x0, x1] of [[t - 0.01, t + rp], [t + iW - rp, t + iW + 0.01]]) {
+        G.box(ribs, x0, y - dT / 2 - gc - rw, t - 0.01, x1, y - dT / 2 - gc, topZ);
+        G.box(ribs, x0, y + dT / 2 + gc, t - 0.01, x1, y + dT / 2 + gc + rw, topZ);
+      }
+      if (ribs.length) B = CSG.union(B, P(ribs));
+      if ([...gX.map(x => Math.min(x - t, t + iW - x)), ...gY.map(y => Math.min(y - t, t + iD - y))].some(d => d < minEdge)) warn.push('Niektóre rowki wypadają w zaokrąglonych rogach - zmniejsz zaokrąglenie.');
+    } else {
+      for (const x of xs) B = CSG.union(B, BX(x - dT / 2, t - 0.5, t - 0.01, x + dT / 2, t + iD + 0.5, topZ));
+      for (const y of ys) B = CSG.union(B, BX(t - 0.5, y - dT / 2, t - 0.01, t + iW + 0.5, y + dT / 2, topZ));
+    }
+    const BT = CSG.toTris(B);
+    const parts = [{ name: 'Pudełko', file: 'pudelko', tris: G.toBed(BT), asmTris: BT, count: 1, color: COL[1], asm: [[0, 0, 0]] }];
+    // ---- wyjmowane przegrodki (krzyzowanie: na zakladke do polowy wysokosci)
+    if (slot) {
+      const cross = !pitchMode && nX && nY, nw = dT + 0.4;
+      // pozycje plytek: przy rowkach "co kilka mm" - rowek najblizszy rownego podzialu
+      const near = (G2, want) => want.map(w => G2.reduce((a, b) => Math.abs(b - w) < Math.abs(a - w) ? b : a, G2[0]));
+      const pX = pitchMode ? (gX.length ? near(gX, xs) : []) : xs, pY = pitchMode ? (gY.length ? near(gY, ys) : []) : ys;
+      if (pX.length) {
+        let A = BX(-dT / 2, t + endC, t, dT / 2, t + iD - endC, topZ);
+        if (cross) for (const y of ys) A = CSG.subtract(A, BX(-dT, y - nw / 2, t + hP / 2, dT, y + nw / 2, topZ + 1));   // wyciecie od gory
+        const AT = CSG.toTris(A);
+        parts.push({ name: 'Przegródka w poprzek', file: 'przegrodka_poprzek', tris: G.toBed(AT.map(q => [q[2], q[1], -q[0]])), asmTris: AT, count: pX.length, color: COL[0], asm: pX.map(x => [x, 0, 0]) });
+      }
+      if (pY.length) {
+        let C = BX(t + endC, -dT / 2, t, t + iW - endC, dT / 2, topZ);
+        if (cross) for (const x of xs) C = CSG.subtract(C, BX(x - nw / 2, -dT, t - 1, x + nw / 2, dT, t + hP / 2));    // wyciecie od dolu
+        const CT = CSG.toTris(C);
+        parts.push({ name: 'Przegródka wzdłuż', file: 'przegrodka_wzdluz', tris: G.toBed(CT.map(q => [q[0], -q[2], q[1]])), asmTris: CT, count: pY.length, color: COL[2], asm: pY.map(y => [0, y, 0]) });
+      }
+    }
+    // ---- pokrywka wciskana: plyta + kolnierz wchodzacy w pudelko (drukowana plyta do stolu)
+    if (lid) {
+      const Ld = G.rbox([], R, oX, oY, 0, 0, 0, oX, oY, lth);
+      const ox = t + gap, ow = iW - 2 * gap, odp = iD - 2 * gap, Ro = Math.max(0, Ri - gap), Rin = Math.max(0, Ro - lipT);
+      const ring = CSG.subtract(P(G.move(G.rbox([], Ro, ow, odp, 0, 0, 0, ow, odp, lipH), ox, ox, lth - 0.01)),
+        P(G.move(G.rbox([], Rin, ow - 2 * lipT, odp - 2 * lipT, 0, 0, 0, ow - 2 * lipT, odp - 2 * lipT, lipH + 1), ox + lipT, ox + lipT, lth - 0.5)));
+      const LT = CSG.toTris(CSG.union(P(Ld), ring));
+      parts.push({ name: 'Pokrywka (płaską stroną na stół)', file: 'pudelko_pokrywka', tris: G.toBed(LT), asmTris: G.move(G.flipX(LT), 0, oY, oZ + lth), count: 1, color: COL[3], asm: [[0, 0, 0]] });
+    }
+    const cw = (iW - nX * dT) / (nX + 1), cd = (iD - nY * dT) / (nY + 1);
+    const info = [['Pudełko z zewnątrz', f1(oX) + ' × ' + f1(oY) + ' × ' + f1(oZ + (lid ? lth : 0)) + ' mm' + (lid ? ' (z pokrywką)' : '')]];
+    if (!pitchMode && (nX || nY)) info.push(['Przedziałek', (nX + 1) * (nY + 1) + ' szt. po ok. ' + f1(cw) + ' × ' + f1(cd) + ' mm']);
+    if (slot && (gX.length || gY.length)) info.push(['Rowki', (gX.length + gY.length) + (pitchMode ? ' (co ' + f1(v.pitch) + ' mm)' : '') + ', luz przegródki ' + String(gc).replace('.', ',') + ' mm z każdej strony']);
+    if (lid) info.push(['Luz pokrywki', String(gap).replace('.', ',') + ' mm z każdej strony' + (fitSaved() == null ? ' (zrób „Test luzu drukarki”, żeby dopasować)' : '')]);
+    const bom = slot ? ['Przegródki drukują się płasko - wsuwasz je od góry w rowki', pitchMode ? 'Rowków jest więcej niż przegródek - dodrukuj przegródki, kiedy zechcesz (ten sam plik)' : 'Przegródki w poprzek i wzdłuż mają wycięcia do połowy - wsuwasz je na krzyż'] : [];
+    if (slot && !pitchMode && !(nX && nY)) bom.pop();
+    return { parts, warn, info, bom };
   } },
 /* ---------- 2b. obudowa TFT zaokraglona (jak gotowe obudowy na termostaty / czujniki) ---------- */
 { id: 'tftcase', name: 'Obudowa TFT zaokrąglona', icon: 'tftcase',

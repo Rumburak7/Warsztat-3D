@@ -1178,7 +1178,10 @@ const TPLS = [
     // zatrzaski: okienka w sciankach pudelka (na srodku bokow), jezyczki z zadziorem w kolnierzu pokrywy
     const SNP = { lipH: 4, gap: 0.3, lth: 2 }, snapSides = v.snap === '4' ? ['f', 'b', 'l', 'r'] : v.snap === '2' ? (oX >= oY ? ['f', 'b'] : ['l', 'r']) : [];
     const snapL = (w) => Math.min(12, ((w === 'f' || w === 'b') ? oX : oY) * 0.3);
-    const snapWin = snapSides.map(w => { const c = ((w === 'f' || w === 'b') ? oX : oY) / 2, L = snapL(w); return { wall: w, o0: c - L / 2 - 0.4, o1: c + L / 2 + 0.4, z0: zt - SNP.lipH + 0.05, z1: zt - SNP.lipH + 2.75 }; });
+    // gora okienka tuz nad miejscem, gdzie skos zadzioru dotyka scianki - pokrywa nie lata w gore/dol (wczesniej ok. 0,5 mm luzu)
+    // zadzior: szczyt 1,4 mm nad koncem kolnierza, wystaje (luz + 0,5); +0,15 zapasu na lekko opadajacy mostek nad okienkiem
+    const snapGap = lidGap(), snapTop = Math.min(2.75, 1.4 + 1.2 * 0.5 / (snapGap + 0.5) + 0.15);
+    const snapWin = snapSides.map(w => { const c = ((w === 'f' || w === 'b') ? oX : oY) / 2, L = snapL(w); return { wall: w, o0: c - L / 2 - 0.4, o1: c + L / 2 + 0.4, z0: zt - SNP.lipH + 0.05, z1: zt - SNP.lipH + snapTop }; });
     const cab = hole(v.cabWall, 0, v.cabW, zt - v.cabD, zt + 1);
     if (usb && usb.wall === (cab && cab.wall) && !(usb.o1 < cab.o0 || cab.o1 < usb.o0)) warn.push('Otwór USB i wycięcie na kable są w tym samym miejscu ściany.');
     if (usb && usb.z1 > zt) warn.push('Otwór USB wychodzi ponad ściankę - zwiększ „Elementy nad płytką”.');
@@ -1216,7 +1219,7 @@ const TPLS = [
     }
     if (PM !== '4' && so < 8.5) warn.push('Płytka jest tylko ' + f1(so) + ' mm nad dnem - jeśli ma piny w dół (np. ESP z listwami), ustaw „Wysokość płytki nad dnem” na ok. 9-10 mm.');
     // pokrywa: plyta + kolnierz wchodzacy w pudelko (luz 0,3 mm); drukowana plyta do stolu
-    const Ld = [], lth = 2, lipT = 1.5, lipH = 4, gap = fitAdj(0.3, 0.1, 1.5);
+    const Ld = [], lth = 2, lipT = 1.5, lipH = 4, gap = lidGap();
     // napis na pokrywie (pokrywa drukowana do gory nogami - widoczna strona lezy na stole)
     let lab = null;
     if (String(v.text || '').trim()) {
@@ -4559,6 +4562,8 @@ const MATPRICE = { PLA: 20, PETG: 20, ABS: 20, 'PLA-CF': 30, ASA: 25, TPU: 30 };
 const FIT_BASE = 0.2;
 function fitSaved() { const f = DB.settings.fit; const v = f && f[printer().id]; return typeof v === 'number' && isFinite(v) ? v : null; }
 function fitDelta() { const v = fitSaved(); return v == null ? 0 : v - FIT_BASE; }
+// luz kolnierza pokrywy (z kazdej strony): bez testu luzu 0,3 mm; po tescie - dokladnie zmierzony luz drukarki (np. K2: 0,10)
+function lidGap() { const v = fitSaved(); return v == null ? 0.3 : +clamp(v, 0.05, 1.5).toFixed(2); }
 function fitAdj(base, mn, mx) { return +clamp(base + fitDelta(), mn == null ? 0 : mn, mx == null ? 5 : mx).toFixed(2); }
 function slicerName() { return printer().slicer || (printer().id === 'i3mega' ? 'Cura' : 'Creality Print'); }
 function costCfg() {

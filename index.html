@@ -1509,6 +1509,11 @@ const TPLS = [
   build(v) {
     const warn = [], t = v.wall, iW = v.iW, iD = v.iD, iH = v.iH, oX = iW + 2 * t, oY = iD + 2 * t, oZ = iH + t;
     const R = Math.max(0, Math.min(v.rad || 0, Math.min(oX, oY) / 2 - 0.5)), Ri = Math.max(0, R - t);
+    // zaokraglony prostokat jako jeden wypukly wielokat (bez wewnetrznych scianek miedzy kawalkami - czysta siatka)
+    const RR = (r, w, h, x0, y0, z0, z1) => { r = Math.max(0, Math.min(r, w / 2 - 0.01, h / 2 - 0.01)); const pts = [];
+      if (r < 0.05) pts.push([0, 0], [w, 0], [w, h], [0, h]);
+      else for (const [cx, cy, a0] of [[w - r, r, -90], [w - r, h - r, 0], [r, h - r, 90], [r, r, 180]]) for (let k = 0; k <= 12; k++) { const a = (a0 + 90 * k / 12) * Math.PI / 180; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+      return G.prismZ([], pts.map(q => [q[0] + x0, q[1] + y0]), z0, z1); };
     const P = (T) => CSG.fromTris(T), BX = (x0, y0, z0, x1, y1, z1) => P(G.box([], x0, y0, z0, x1, y1, z1));
     const lid = v.lid === 'lip', lth = 1.6, lipT = 1.2, lipH = 4, gap = lidGap();
     const slot = v.dType === 'slot', dT = v.dT;
@@ -1519,8 +1524,8 @@ const TPLS = [
     const pitchMode = slot && v.slotMode === 'pitch';
     if (pitchMode && nX && nY) { warn.push('Przy rowkach „co kilka mm” przegródki mogą być tylko w jednym kierunku - przegródki wzdłuż pominięte.'); nY = 0; }
     // ---- pudelko
-    const outer = G.rbox([], R, oX, oY, 0, 0, 0, oX, oY, oZ);
-    const cav = G.move(G.rbox([], Ri, iW, iD, 0, 0, 0, iW, iD, iH + 1), t, t, t);
+    const outer = RR(R, oX, oY, 0, 0, 0, oZ);
+    const cav = RR(Ri, iW, iD, t, t, t, oZ + 1);
     let B = CSG.subtract(P(outer), P(cav));
     const even = (n, span) => Array.from({ length: n }, (_, i) => t + span * (i + 1) / (n + 1));
     const rw = 1.2, rp = 1.2, gc = fitSaved() == null ? 0.25 : +clamp(fitSaved() + 0.05, 0.1, 0.6).toFixed(2), endC = 0.3;
@@ -1572,10 +1577,9 @@ const TPLS = [
     }
     // ---- pokrywka wciskana: plyta + kolnierz wchodzacy w pudelko (drukowana plyta do stolu)
     if (lid) {
-      const Ld = G.rbox([], R, oX, oY, 0, 0, 0, oX, oY, lth);
+      const Ld = RR(R, oX, oY, 0, 0, 0, lth);
       const ox = t + gap, ow = iW - 2 * gap, odp = iD - 2 * gap, Ro = Math.max(0, Ri - gap), Rin = Math.max(0, Ro - lipT);
-      const ring = CSG.subtract(P(G.move(G.rbox([], Ro, ow, odp, 0, 0, 0, ow, odp, lipH), ox, ox, lth - 0.01)),
-        P(G.move(G.rbox([], Rin, ow - 2 * lipT, odp - 2 * lipT, 0, 0, 0, ow - 2 * lipT, odp - 2 * lipT, lipH + 1), ox + lipT, ox + lipT, lth - 0.5)));
+      const ring = CSG.subtract(P(RR(Ro, ow, odp, ox, ox, lth - 0.01, lth + lipH)), P(RR(Rin, ow - 2 * lipT, odp - 2 * lipT, ox + lipT, ox + lipT, lth - 0.5, lth + lipH + 1)));
       const LT = CSG.toTris(CSG.union(P(Ld), ring));
       parts.push({ name: 'Pokrywka (płaską stroną na stół)', file: 'pudelko_pokrywka', tris: G.toBed(LT), asmTris: G.move(G.flipX(LT), 0, oY, oZ + lth), count: 1, color: COL[3], asm: [[0, 0, 0]] });
     }

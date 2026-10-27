@@ -5186,12 +5186,14 @@ function mf3Plate(items, title) {
   });
   // kazdy item: obiekt ze skladnikami (czesc + jej napis); ten sam zestaw czesci = ten sam obiekt (kopie)
   const asmId = new Map(); let nid = objs.length + 2, build = '';
-  // numer filamentu dla kazdej czesci: ten sam kolor = ten sam filament (1, 2, 3...) - slicer (Creality Print / Orca / Bambu) od razu przypisze kolory
-  const fil = new Map(), filOf = (o) => { const c = String(o.color || '').toLowerCase(); if (!fil.has(c)) fil.set(c, fil.size + 1); return fil.get(c); };
+  // numer filamentu: kazdy obiekt zaczyna od 1 (osobne czesci na stole = filament 1, zeby Creality Print nie zglaszal bledu
+  // "gemischtes Filament ... kann nicht aufgeloest werden"); tylko czesci WEWNATRZ jednego obiektu (np. napis w drugim kolorze) dostaja 2, 3...
+  let fil = new Map(); const filOf = (o) => { const c = String(o.color || '').toLowerCase(); if (!fil.has(c)) fil.set(c, fil.size + 1); return fil.get(c); };
   const cfg = ['<?xml version="1.0" encoding="UTF-8"?>\n<config>\n'];
   items.forEach((it, i) => {
     const key = refs[i].join(',');
     if (!asmId.has(key)) {
+      fil = new Map();
       asmId.set(key, nid); out.push('<object id="' + nid + '" type="model" name="' + xe(it.name) + '"><components>' + refs[i].map(k => '<component objectid="' + (k + 2) + '"/>').join('') + '</components></object>\n');
       const e0 = filOf(objs[refs[i][0]]);
       cfg.push('  <object id="' + nid + '">\n    <metadata key="name" value="' + xe(it.name) + '"/>\n    <metadata key="extruder" value="' + e0 + '"/>\n');

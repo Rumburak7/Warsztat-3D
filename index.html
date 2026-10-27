@@ -1285,10 +1285,22 @@ const TPLS = [
       if (w === 'f' || w === 'b') { const c = oX / 2, yF = w === 'f' ? y0 + 0.01 : y1 - 0.01, sg = w === 'f' ? -1 : 1; G.prism(Ld, [[yF, zA], [yF, zB], [yF + sg * bb, zM]], c - L / 2, c + L / 2); }
       else { const c = oY / 2, xF = w === 'l' ? x0 + 0.01 : x1 - 0.01, sg = w === 'l' ? -1 : 1, P = []; G.prism(P, [[xF, zA], [xF, zB], [xF + sg * bb, zM]], c - L / 2, c + L / 2); for (let i = 0; i < P.length; i += 3) Ld.push([P[i][1], P[i][0], P[i][2]], [P[i + 2][1], P[i + 2][0], P[i + 2][2]], [P[i + 1][1], P[i + 1][0], P[i + 1][2]]); }
     }
-    G.wall(Ld, 'x', x0, x1, y0, y0 + lipT, lth - 0.01, lth + lipH, cut('f'));
-    G.wall(Ld, 'x', x0, x1, y1 - lipT, y1, lth - 0.01, lth + lipH, cut('b'));
-    G.wall(Ld, 'y', y0 + lipT, y1 - lipT, x0, x0 + lipT, lth - 0.01, lth + lipH, cut('l'));
-    G.wall(Ld, 'y', y0 + lipT, y1 - lipT, x1 - lipT, x1, lth - 0.01, lth + lipH, cut('r'));
+    // kolnierz: przy zaokraglonych rogach pudelka (srodek tez zaokraglony, promien R - t) rogi kolnierza tez zaokraglone - inaczej rog kolnierza wchodzi w scianke
+    const Ro = R - t - gap, cc = Ro > 0.05 ? Math.max(lipT, Ro) : 0;
+    G.wall(Ld, 'x', x0 + cc, x1 - cc, y0, y0 + lipT, lth - 0.01, lth + lipH, cut('f'));
+    G.wall(Ld, 'x', x0 + cc, x1 - cc, y1 - lipT, y1, lth - 0.01, lth + lipH, cut('b'));
+    G.wall(Ld, 'y', y0 + (cc || lipT), y1 - (cc || lipT), x0, x0 + lipT, lth - 0.01, lth + lipH, cut('l'));
+    G.wall(Ld, 'y', y0 + (cc || lipT), y1 - (cc || lipT), x1 - lipT, x1, lth - 0.01, lth + lipH, cut('r'));
+    if (cc) for (const [sx, sy, X, Y] of [[1, 1, x0, y0], [-1, 1, x1, y0], [1, -1, x0, y1], [-1, -1, x1, y1]]) {
+      const N = 10, P = (u, w) => [X + sx * u, Y + sy * w], arc = (r, k) => { const a = Math.PI / 2 * k / N; return [Ro - r * Math.cos(a), Ro - r * Math.sin(a)]; };
+      if (Ro >= lipT) for (let k = 0; k < N; k++) {             // cwierc pierscienia: kawalki wypukle
+        const o0 = arc(Ro, k), o1 = arc(Ro, k + 1), i0 = arc(Ro - lipT, k), i1 = arc(Ro - lipT, k + 1);
+        G.prismZ(Ld, [o0, o1, i1, i0].map(q => P(q[0], q[1])), lth - 0.01, lth + lipH);
+      } else {                                                   // maly promien: kwadrat lipT x lipT z rogiem po luku
+        const Q = [[lipT, 0], [lipT, lipT], [0, lipT]]; for (let k = 0; k <= N; k++) Q.push(arc(Ro, k));
+        G.prismZ(Ld, Q.map(q => P(q[0], q[1])), lth - 0.01, lth + lipH);
+      }
+    }
     const lidAsm = G.move(G.flipX(Ld), 0, oY, zt + lth);   // pokrywa na pudelku (odwrocona)
     // plytka (tylko podglad)
     const brd = G.box([], bx0, by0, f + so, bx0 + v.L, by0 + v.W, f + so + bt);

@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.78</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3033,6 +3033,21 @@ function freeCompute() {
     const c = o.color || FREE_COLORS[0][0];
     if (!byColor.has(c)) byColor.set(c, []);
     const arr = byColor.get(c); for (const p of out) arr.push(p);
+  }
+  // kilka kolorow: gdzie bryly roznych kolorow na siebie zachodza (np. napis wlozony w pokrywe), wygrywa mniejsza bryla -
+  // z wczesniejszego koloru wycinamy to miejsce; inaczej napis siedzi "w srodku" pokrywy, slicer go nie widzi i zglasza bledy siatki
+  if (byColor.size > 1) {
+    // mniejsza bryla wygrywa (napis, wstawka) - wycinamy ja z wiekszej (pokrywa), niezaleznie od kolejnosci dodania klockow
+    const vol = new Map(); for (const [c, T] of byColor) vol.set(c, Math.abs(G.volume(T)));
+    const order = [...byColor.keys()].sort((a, b) => vol.get(b) - vol.get(a));
+    for (let i = 0; i < order.length - 1; i++) {
+      const later = []; for (let j = i + 1; j < order.length; j++) for (const p of byColor.get(order[j])) later.push(p);
+      const A = byColor.get(order[i]), ba = G.bbox(A), bl = G.bbox(later);
+      if (ba.mx[0] < bl.mn[0] || bl.mx[0] < ba.mn[0] || ba.mx[1] < bl.mn[1] || bl.mx[1] < ba.mn[1] || ba.mx[2] < bl.mn[2] || bl.mx[2] < ba.mn[2]) continue;
+      try { const R = CSG.toTris(CSG.subtract(CSG.fromTris(A), CSG.fromTris(later))); if (R.length) byColor.set(order[i], R); } catch (e) { /* zostaje bez wycinania */ }
+    }
+    // kolejnosc czesci: najwieksza pierwsza (w 3MF = filament 1), napisy i wstawki dalej (filament 2, 3...)
+    const nb = order.map(c => [c, byColor.get(c)]); byColor.clear(); for (const [c, T] of nb) byColor.set(c, T);
   }
   const all = []; for (const T of byColor.values()) for (const p of T) all.push(p);
   // na stol: wspolne przesuniecie dla wszystkich kolorow (pliki pasuja do siebie)

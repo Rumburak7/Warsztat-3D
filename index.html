@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.81</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.82</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -5510,7 +5510,8 @@ function v3Pan(dx, dy) {
   const e = v3.cam.matrixWorld.elements;
   v3.orb.t.add(new THREE.Vector3(e[0], e[1], e[2]).multiplyScalar(-dx * s)).add(new THREE.Vector3(e[4], e[5], e[6]).multiplyScalar(dy * s));
 }
-function v3Resize() { if (!v3.r) return; const el = $('#view'), w = el.clientWidth, h = el.clientHeight; if (!w || !h) return; v3.r.setSize(w, h); v3.cam.aspect = w / h; v3.cam.updateProjectionMatrix(); v3Req(); }
+function v3Resize() { if (!v3.r) return; const el = $('#view'), w = el.clientWidth, h = el.clientHeight; if (!w || !h) return; const sk = w + 'x' + h + 'x' + (window.devicePixelRatio || 1); if (v3.sz === sk) { v3Req(); return; } v3.sz = sk; v3.r.setSize(w, h);   // ten sam rozmiar - nie ustawiaj (czysci obraz = mrugniecie)
+  v3.cam.aspect = w / h; v3.cam.updateProjectionMatrix(); v3Req(); }
 function v3Req() {
   if (v3.need || !v3.r) return; v3.need = true;
   requestAnimationFrame(() => {

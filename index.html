@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.80</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.81</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -4270,8 +4270,15 @@ function smoothGeom(T, creaseDeg) {
 
 
 // stol jak w Tinkercad: jasna niebieska kratka (co 1 mm, mocniej co 10 mm), niebieski brzeg i nazwa drukarki
+// tekstura stolu (duzy obrazek ~3000x3000 px) - rysowana RAZ i trzymana; wczesniej powstawala przy kazdym ruchu myszka
+// i nie byla zwalniana -> pamiec karty graficznej sie konczyla, obraz migal / robil sie czarny
+let BED_TX = null;
 function bedSurface(root, bed) {
   const dk = themeNow() === 'dark', W = bed[0], D = bed[1], ppm = Math.max(4, Math.min(12, 4096 / Math.max(W, D)));
+  const txKey = [W, D, dk, printer().name].join('|');
+  let tx = BED_TX && BED_TX.key === txKey ? BED_TX.tx : null;
+  if (!tx) {
+  if (BED_TX) { try { BED_TX.tx.dispose(); } catch (e) {} BED_TX = null; }
   const c = document.createElement('canvas'); c.width = Math.round(W * ppm); c.height = Math.round(D * ppm);
   const g = c.getContext('2d'), X = (mm) => mm * ppm, band = Math.max(6, Math.min(W, D) * 0.035);
   g.fillStyle = dk ? '#16252e' : '#f4fafd'; g.fillRect(0, 0, c.width, c.height);
@@ -4289,8 +4296,10 @@ function bedSurface(root, bed) {
   g.font = 'italic 800 ' + Math.round(fh) + 'px Arial, Helvetica, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   let fw = g.measureText(name).width; const maxW = c.width - 2 * X(band) - X(6); if (fw > maxW) { g.font = 'italic 800 ' + Math.round(fh * maxW / fw) + 'px Arial, Helvetica, sans-serif'; }
   g.fillStyle = dk ? 'rgba(120,200,235,0.42)' : 'rgba(60,160,205,0.40)'; g.fillText(name, c.width / 2, c.height - X(band) - X(4));
-  const tx = new THREE.CanvasTexture(c);
+  tx = new THREE.CanvasTexture(c);
   try { if (v3.r && v3.r.capabilities && v3.r.capabilities.getMaxAnisotropy) tx.anisotropy = Math.min(16, v3.r.capabilities.getMaxAnisotropy()); } catch (e) {}
+  BED_TX = { key: txKey, tx };
+  }
   const plate = new THREE.Mesh(new THREE.BoxGeometry(W, 1, D), new THREE.MeshStandardMaterial({ color: dk ? '#2a3f4c' : '#b9dcec', roughness: 0.95 }));
   plate.position.y = -0.55; root.add(plate);
   const top = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide }));
@@ -5520,7 +5529,7 @@ function v3Req() {
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function v3Build(resetCam) {
   if (!v3.r || !built) return;
-  if (v3.root) { v3.scene.remove(v3.root); v3.root.traverse(o => { if (o.geometry && !(o.geometry.userData && o.geometry.userData.keep)) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+  if (v3.root) { v3.scene.remove(v3.root); v3.root.traverse(o => { if (o.geometry && !(o.geometry.userData && o.geometry.userData.keep)) o.geometry.dispose(); if (o.material) { const mt = o.material; if (mt.map && !(BED_TX && mt.map === BED_TX.tx)) mt.map.dispose(); mt.dispose(); } }); }
   const root = v3.root = new THREE.Group(); v3.scene.add(root);
   v3.scene.background = new THREE.Color(cssVar('--view') || '#dfe6ea');
   const add = (T, color, dx, dy, dz, opa) => {

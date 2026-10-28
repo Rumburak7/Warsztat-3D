@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.82</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.83</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3076,10 +3076,10 @@ function freeScheduleCompute() {
   FR.timer = setTimeout(() => {
     if (!cur || cur.tpl !== 'free' || FR.drag) return;
     const k = freeKey(); if (FR.cache.key === k) return;
-    FR.busy = true; const st = $('#frBusy'); if (st) st.hidden = false;
+    FR.busy = true; const st = $('#frBusy'); if (st) st.style.visibility = 'visible';   // visibility (nie hidden) - miejsce zostaje, panel nie zmienia wysokosci, obraz 3D nie mruga
     setTimeout(() => {
       try { freeCompute(); } catch (e) { console.error(e); }
-      FR.busy = false; const st2 = $('#frBusy'); if (st2) st2.hidden = true;
+      FR.busy = false; const st2 = $('#frBusy'); if (st2) st2.style.visibility = 'hidden';
       if (cur && cur.tpl === 'free') { rebuild(false, true); }
     }, 30);
   }, FR.cache.ms > 800 ? 2500 : 650);   // dlugie liczenie (duze pliki STL) - poczekaj, az skonczysz przesuwac
@@ -3563,7 +3563,7 @@ function renderFreeTop() {
   <div class="tg"><button type="button" class="tb" data-act="theme" title="Przełącz wygląd: dzień (jasny) / noc (ciemny)">${themeNow() === 'dark' ? '&#9728;<span>Dzień</span>' : '&#9790;<span>Noc</span>'}</button></div>
   <div class="tg tgx"><label title="Przesuwanie i wymiary skaczą co tyle">Siatka<select data-grid>${[[0, 'wył.'], [0.1, '0,1'], [0.5, '0,5'], [1, '1'], [2, '2'], [5, '5'], [10, '10']].map(([g, l]) => `<option value="${g}"${freeGrid() === g ? ' selected' : ''}>${l}${g ? ' mm' : ''}</option>`).join('')}</select></label>
   <label title="Gładkość okrągłych klocków (walec, kula, stożek, rura) - ilość boków na obwodzie. ${n ? 'Zmienia zaznaczone.' : 'Zmienia wszystkie okrągłe klocki.'}">Gładkość<input type="range" data-seg min="12" max="128" step="4" value="${seg}"><b id="frSegV">${seg}</b></label></div>
-  <span id="frBusy" class="frBusy"${FR.busy ? '' : ' hidden'}>&#8987; liczę otwory…</span>`;
+  <span id="frBusy" class="frBusy" style="visibility:${FR.busy ? 'visible' : 'hidden'}">&#8987; liczę otwory…</span>`;
 }
 let frSegPushed = false, frSegT = 0;
 function freeTopEvents() {

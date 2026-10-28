@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.79</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.80</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3019,7 +3019,7 @@ function freeChanged(panel) { markDirty(); rebuild(false); if (panel) renderFree
 
 /* ---------- wynik: bryly minus otwory ---------- */
 let MESH_VER = 0;   // rosnie, gdy dojdzie siatka z dysku (wynik trzeba policzyc od nowa)
-function freeKey() { return MESH_VER + (FR.drag ? '|D' : '') + '|' + JSON.stringify(freeObjs().map(o => { const c = Object.assign({}, o); delete c.name; delete c.lock; return c; })); }
+function freeKey() { return MESH_VER + '|' + JSON.stringify(freeObjs().map(o => { const c = Object.assign({}, o); delete c.name; delete c.lock; return c; })); }
 function freeCompute() {
   const objs = freeObjs(), key = freeKey();
   if (FR.cache.key === key && FR.cache.parts) return FR.cache;
@@ -3067,7 +3067,8 @@ function freeCompute() {
   if (all.length && bb.mn[2] < -0.05) warn.push('Część modelu jest pod stołem (' + f1(bb.mn[2]) + ' mm) - w pliku STL model zostanie podniesiony na stół.');
   if (!solids.length && objs.length) warn.push('Same otwory - dodaj bryłę, z której mają być wycięte.');
   if (stat.big) warn.push('Otwór w bardzo dokładnym miejscu modelu (ponad 60 000 trójkątów przy otworze) - tego nie wycinam, bo przeglądarka by stanęła. Wytnij go w slicerze (np. „Negativ-Teil” / „Modifier”).');
-  FR.cache = { key, parts, warn, ms: performance.now() - t0, cut: stat.cut, colors: byColor.size };
+  // w trakcie przesuwania (kilka kolorow bez wycinania wstawek) - wynik tymczasowy, po puszczeniu myszki liczy sie jeszcze raz
+  FR.cache = { key: (FR.drag && byColor.size > 1) ? key + '|tmp' : key, parts, warn, ms: performance.now() - t0, cut: stat.cut, colors: byColor.size };
   return FR.cache;
 }
 function freeScheduleCompute() {
@@ -3078,7 +3079,7 @@ function freeScheduleCompute() {
     FR.busy = true; const st = $('#frBusy'); if (st) st.hidden = false;
     setTimeout(() => {
       try { freeCompute(); } catch (e) { console.error(e); }
-      FR.busy = false;
+      FR.busy = false; const st2 = $('#frBusy'); if (st2) st2.hidden = true;
       if (cur && cur.tpl === 'free') { rebuild(false, true); }
     }, 30);
   }, FR.cache.ms > 800 ? 2500 : 650);   // dlugie liczenie (duze pliki STL) - poczekaj, az skonczysz przesuwac

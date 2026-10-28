@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.78</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.79</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3019,7 +3019,7 @@ function freeChanged(panel) { markDirty(); rebuild(false); if (panel) renderFree
 
 /* ---------- wynik: bryly minus otwory ---------- */
 let MESH_VER = 0;   // rosnie, gdy dojdzie siatka z dysku (wynik trzeba policzyc od nowa)
-function freeKey() { return MESH_VER + '|' + JSON.stringify(freeObjs().map(o => { const c = Object.assign({}, o); delete c.name; delete c.lock; return c; })); }
+function freeKey() { return MESH_VER + (FR.drag ? '|D' : '') + '|' + JSON.stringify(freeObjs().map(o => { const c = Object.assign({}, o); delete c.name; delete c.lock; return c; })); }
 function freeCompute() {
   const objs = freeObjs(), key = freeKey();
   if (FR.cache.key === key && FR.cache.parts) return FR.cache;
@@ -3036,13 +3036,20 @@ function freeCompute() {
   }
   // kilka kolorow: gdzie bryly roznych kolorow na siebie zachodza (np. napis wlozony w pokrywe), wygrywa mniejsza bryla -
   // z wczesniejszego koloru wycinamy to miejsce; inaczej napis siedzi "w srodku" pokrywy, slicer go nie widzi i zglasza bledy siatki
-  if (byColor.size > 1) {
+  if (byColor.size > 1 && !FR.drag) {   // w trakcie przesuwania myszka - bez tego (szybko); liczy sie po puszczeniu
     // mniejsza bryla wygrywa (napis, wstawka) - wycinamy ja z wiekszej (pokrywa), niezaleznie od kolejnosci dodania klockow
     const vol = new Map(); for (const [c, T] of byColor) vol.set(c, Math.abs(G.volume(T)));
     const order = [...byColor.keys()].sort((a, b) => vol.get(b) - vol.get(a));
     for (let i = 0; i < order.length - 1; i++) {
-      const later = []; for (let j = i + 1; j < order.length; j++) for (const p of byColor.get(order[j])) later.push(p);
-      const A = byColor.get(order[i]), ba = G.bbox(A), bl = G.bbox(later);
+      // tylko male wstawki (napis, logo: ponizej 1/4 objetosci) - dwa duze klocki w roznych kolorach zostaja jak sa (szybko)
+      const A = byColor.get(order[i]), ba = G.bbox(A), later = [];
+      for (let j = i + 1; j < order.length; j++) {
+        const Tj = byColor.get(order[j]); if (vol.get(order[j]) > vol.get(order[i]) * 0.25) continue;
+        const bj = G.bbox(Tj); if (ba.mx[0] < bj.mn[0] || bj.mx[0] < ba.mn[0] || ba.mx[1] < bj.mn[1] || bj.mx[1] < ba.mn[1] || ba.mx[2] < bj.mn[2] || bj.mx[2] < ba.mn[2]) continue;
+        for (const p of Tj) later.push(p);
+      }
+      if (!later.length) continue;
+      const bl = G.bbox(later);
       if (ba.mx[0] < bl.mn[0] || bl.mx[0] < ba.mn[0] || ba.mx[1] < bl.mn[1] || bl.mx[1] < ba.mn[1] || ba.mx[2] < bl.mn[2] || bl.mx[2] < ba.mn[2]) continue;
       try { const R = CSG.toTris(CSG.subtract(CSG.fromTris(A), CSG.fromTris(later))); if (R.length) byColor.set(order[i], R); } catch (e) { /* zostaje bez wycinania */ }
     }

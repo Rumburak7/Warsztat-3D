@@ -1607,22 +1607,26 @@ const TPLS = [
   } },
 /* ---------- 2a2. uchwyt do szafki (meblowy) ---------- */
 { id: 'handle', name: 'Uchwyt do szafki', icon: 'handle',
-  desc: 'Uchwyt meblowy na dwóch nóżkach - łuk albo prosty, z zaokrąglonymi krawędziami. Przykręcany śrubami M4 od środka drzwiczek (nakrętka w nóżce, wkładka albo otwór pod gwint). Drukuje się na boku - mocny.',
+  desc: 'Uchwyt meblowy: łuk, kabłąk albo gałka, z zaokrąglonymi krawędziami. Przykręcany śrubami M4 od środka drzwiczek (nakrętka w nóżce, wkładka albo otwór pod gwint). Drukuje się na boku - mocny.',
   p: [
-    { k: 'S', label: 'Rozstaw otworów (środek-środek)', def: 128, min: 20, max: 320, step: 1, group: 'Wymiary', hint: 'meble: 64, 96, 128, 160, 192 mm - zmierz na drzwiczkach od środka do środka otworów' },
-    { k: 'L', label: 'Długość uchwytu', def: 160, min: 30, max: 340, step: 1, hint: 'cały uchwyt; musi być dłuższy niż rozstaw + nóżka' },
-    { k: 'H', label: 'Miejsce na palce', def: 28, min: 12, max: 60, step: 1, hint: 'odstęp od drzwiczek do spodu uchwytu (wygodnie 25-30 mm)' },
-    { k: 'rise', label: 'Wygięcie łuku', def: 10, min: 0, max: 40, step: 1, hint: '0 = prosty; o ile środek jest dalej od drzwiczek niż końce' },
-    { k: 'bt', label: 'Grubość uchwytu', def: 9, min: 5, max: 25, step: 0.5, group: 'Przekrój', hint: 'część, którą trzymasz (odległość dłoń-drzwiczki)' },
-    { k: 'W', label: 'Szerokość uchwytu', def: 15, min: 8, max: 40, step: 0.5, hint: 'w druku = wysokość (drukuje się na boku)' },
-    { k: 'lw', label: 'Szerokość nóżki', def: 14, min: 9, max: 30, step: 0.5 },
-    { k: 'rad', label: 'Zaokrąglenie krawędzi', def: 3, min: 0, max: 8, step: 0.5, hint: 'od strony dłoni - wygodniej trzymać; 0 = kanciaste' },
+    { k: 'shape', label: 'Kształt', def: 'arc', opts: [['arc', 'łuk na dwóch nóżkach (końce wystają)'], ['bow', 'kabłąk (jednym łukiem z nóżki w nóżkę)'], ['knob', 'gałka (jedna śruba)']], group: 'Kształt' },
+    { k: 'S', label: 'Rozstaw otworów (środek-środek)', def: 128, min: 20, max: 320, step: 1, group: 'Wymiary', show: (v) => v.shape !== 'knob', hint: 'meble: 64, 96, 128, 160, 192 mm - zmierz na drzwiczkach od środka do środka otworów' },
+    { k: 'L', label: 'Długość uchwytu', def: 160, min: 30, max: 340, step: 1, show: (v) => v.shape === 'arc', hint: 'cały uchwyt; musi być dłuższy niż rozstaw + nóżka' },
+    { k: 'H', label: 'Miejsce na palce', def: 28, min: 12, max: 60, step: 1, show: (v) => v.shape !== 'knob', hint: 'odstęp od drzwiczek do spodu uchwytu (wygodnie 25-30 mm)' },
+    { k: 'rise', label: 'Wygięcie łuku', def: 10, min: 0, max: 40, step: 1, show: (v) => v.shape === 'arc', hint: '0 = prosty; o ile środek jest dalej od drzwiczek niż końce' },
+    { k: 'kD', label: 'Średnica gałki', def: 30, min: 15, max: 60, step: 0.5, show: (v) => v.shape === 'knob' },
+    { k: 'kH', label: 'Wysokość gałki', def: 26, min: 12, max: 50, step: 0.5, show: (v) => v.shape === 'knob', hint: 'od drzwiczek do wierzchu' },
+    { k: 'bt', label: 'Grubość uchwytu', def: 9, min: 5, max: 25, step: 0.5, group: 'Przekrój', show: (v) => v.shape !== 'knob', hint: 'część, którą trzymasz (odległość dłoń-drzwiczki)' },
+    { k: 'W', label: 'Szerokość uchwytu', def: 15, min: 8, max: 40, step: 0.5, show: (v) => v.shape !== 'knob', hint: 'w druku = wysokość (drukuje się na boku)' },
+    { k: 'lw', label: 'Szerokość nóżki', def: 14, min: 9, max: 30, step: 0.5, show: (v) => v.shape !== 'knob' },
+    { k: 'rad', label: 'Zaokrąglenie krawędzi', def: 3, min: 0, max: 8, step: 0.5, show: (v) => v.shape !== 'knob', hint: 'od strony dłoni - wygodniej trzymać; 0 = kanciaste' },
     { k: 'mount', label: 'Mocowanie M4 (śruba od środka drzwiczek)', def: 'nut', opts: [['nut', 'nakrętka M4 wsuwana z boku w nóżkę (najmocniej)'], ['insert', 'wkładka gwintowana M4 (wciskana lutownicą, Ø5,6)'], ['tap', 'otwór Ø3,4 - śruba sama robi gwint']], group: 'Mocowanie' },
     { k: 'door', label: 'Grubość drzwiczek', def: 18, min: 5, max: 40, step: 0.5, hint: 'do dobrania długości śruby' }
   ],
   build(v) {
+    if (v.shape === 'knob') return this.knob(v);
     const warn = [], S = v.S, L = Math.max(v.L, S + v.lw + 4), W = v.W, bt = v.bt, H = v.H, lw = v.lw;
-    if (v.L < S + v.lw + 4) warn.push('Uchwyt musi być dłuższy niż rozstaw + nóżka - ustawiłem ' + f1(L) + ' mm.');
+    if (v.shape === 'arc' && v.L < S + v.lw + 4) warn.push('Uchwyt musi być dłuższy niż rozstaw + nóżka - ustawiłem ' + f1(L) + ' mm.');
     const r = Math.max(0, Math.min(v.rad || 0, W / 2 - 0.5, bt / 2 - 0.5, lw / 2 - 1));
     const P = (T) => CSG.fromTris(T);
     // os uchwytu: x wzdluz, y od drzwiczek (y = 0 = drzwiczki), z = szerokosc (w druku do gory)
@@ -1646,7 +1650,40 @@ const TPLS = [
       return T;
     };
     // plaster na wysokosci z0..z1 z wcieciem d (zaokraglenie krawedzi warstwami)
+    // kablak: sciezka z nozki w gore, lukiem w poprzeczke i w dol do drugiej nozki (grubosc: nozka lw -> poprzeczka bt)
+    const bow = v.shape === 'bow', Yb = H + bt / 2, Rb = Math.max(Math.max(lw, bt) / 2 + 2, Math.min(H * 0.7, S / 3));
+    const bowPath = () => {
+      const C = [], hw = []; const leg = (x0, y0, x1, y1, n, h) => { for (let i = 0; i < n; i++) { const t = i / n; C.push([x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]); hw.push(h); } };
+      const arc = (cx, cy, a0, a1, n, h0, h1) => { for (let i = 0; i < n; i++) { const t = i / n, a = a0 + (a1 - a0) * t; C.push([cx + Rb * Math.cos(a), cy + Rb * Math.sin(a)]); hw.push(h0 + (h1 - h0) * (0.5 - 0.5 * Math.cos(Math.PI * t))); } };
+      const xl = -S / 2, xr = S / 2, yt = Math.max(1, Yb - Rb);
+      leg(xl, 0, xl, yt, 4, lw / 2);
+      arc(xl + Rb, yt, Math.PI, Math.PI / 2, 16, lw / 2, bt / 2);
+      leg(xl + Rb, Yb, xr - Rb, Yb, 8, bt / 2);
+      arc(xr - Rb, yt, Math.PI / 2, 0, 16, bt / 2, lw / 2);
+      C.push([xr, yt]); hw.push(lw / 2); C.push([xr, 0]); hw.push(lw / 2);
+      return { C, hw };
+    };
+    const pathBand = (C, hw, d, z0, z1) => {
+      const n = C.length, L1 = [], R1 = [], T = [];
+      for (let i = 0; i < n; i++) {
+        const a = C[Math.max(0, i - 1)], b = C[Math.min(n - 1, i + 1)], tx = b[0] - a[0], ty = b[1] - a[1], l = Math.hypot(tx, ty) || 1, nx = -ty / l, ny = tx / l, h = Math.max(0.5, hw[i] - d);
+        L1.push([C[i][0] + nx * h, C[i][1] + ny * h]); R1.push([C[i][0] - nx * h, C[i][1] - ny * h]);
+      }
+      const q = (a, b, c, e) => T.push(a, b, c, a, c, e), P3 = (p, z) => [p[0], p[1], z];
+      for (let i = 0; i < n - 1; i++) {
+        q(P3(R1[i], z1), P3(R1[i + 1], z1), P3(L1[i + 1], z1), P3(L1[i], z1));
+        q(P3(R1[i], z0), P3(L1[i], z0), P3(L1[i + 1], z0), P3(R1[i + 1], z0));
+        q(P3(R1[i], z0), P3(R1[i + 1], z0), P3(R1[i + 1], z1), P3(R1[i], z1));
+        q(P3(L1[i], z0), P3(L1[i], z1), P3(L1[i + 1], z1), P3(L1[i + 1], z0));
+      }
+      q(P3(R1[0], z0), P3(R1[0], z1), P3(L1[0], z1), P3(L1[0], z0));
+      q(P3(R1[n - 1], z0), P3(L1[n - 1], z0), P3(L1[n - 1], z1), P3(R1[n - 1], z1));
+      if (G.volume(T) < 0) for (let i = 0; i < T.length; i += 3) { const t = T[i + 1]; T[i + 1] = T[i + 2]; T[i + 2] = t; }
+      return T;
+    };
+    const BP = bow ? bowPath() : null;
     const slice = (d, z0, z1) => {
+      if (bow) return P(pathBand(BP.C, BP.hw, d, z0, z1));
       let A = P(band(-L / 2 + d, L / 2 - d, bt / 2 - d, z0, z1));
       for (const sx of [-1, 1]) { const x = sx * S / 2; A = CSG.union(A, P(G.box([], x - lw / 2 + d, 0, z0, x + lw / 2 - d, yc(x) - bt / 2 + 1, z1))); }
       return A;
@@ -1666,7 +1703,7 @@ const TPLS = [
     }
     // otwory w nozkach (os y, od drzwiczek)
     const cylY = (cx, cz, rr, y0, y1) => { const C = [], A = ringPts(32, rr, rr, -y1), B = ringPts(32, rr, rr, -y0); loft(C, A, B); capDown(C, A, [0, 0, -y1]); capUp(C, B, [0, 0, -y0]); return C.map(q => [q[0] + cx, -q[2], q[1] + cz]); };
-    const legTop = yc(S / 2) - bt / 2;   // ile nozki pod lukiem
+    const legTop = bow ? Math.max(1, Yb - Rb) + 2 : yc(S / 2) - bt / 2;   // ile prostej nozki pod lukiem
     const nut = { f: 7.0 + 0.3, h: 3.2 + 0.4 }, nutY = Math.min(8, Math.max(5, legTop - 2));
     let depth = 0, info2 = '';
     for (const sx of [-1, 1]) {
@@ -1684,9 +1721,39 @@ const TPLS = [
     const std = [12, 16, 20, 25, 30, 35, 40, 45, 50, 60], need = v.door + depth, scr = std.find(x => x >= need - 1 && x <= need + 3) || std.find(x => x >= need - 1) || Math.round(need);
     info2 = 'M4 × ' + scr + ' mm (drzwiczki ' + f1(v.door) + ' + ' + f1(depth) + ' w nóżce)';
     return { parts: [{ name: 'Uchwyt (drukuj na boku, tak jak leży)', file: 'uchwyt_' + S + 'mm', tris: G.toBed(T), asmTris: T, count: 1, color: COL[1], asm: [[0, 0, 0]] }], warn,
-      info: [['Rozstaw otworów', f1(S) + ' mm'], ['Uchwyt', f1(L) + ' × ' + f1(yc(0) + bt / 2) + ' × ' + f1(W) + ' mm'], ['Śruby (2 szt.)', info2]],
+      info: [['Rozstaw otworów', f1(S) + ' mm'], ['Uchwyt', (() => { const b = G.bbox(T); return f1(b.size[0]) + ' × ' + f1(b.size[1]) + ' × ' + f1(b.size[2]) + ' mm'; })()], ['Śruby (2 szt.)', info2]],
       bom: [v.mount === 'nut' ? '2× nakrętka M4 - wsuń do szczeliny w nóżce przed przykręceniem' : v.mount === 'insert' ? '2× wkładka gwintowana M4 (Ø5,6) - wciśnij lutownicą (ok. 220 °C)' : 'śruba M4 sama zrobi gwint - wkręcaj powoli, bez siły', '2× śruba ' + info2.split(' (')[0] + ' (od środka drzwiczek)'] };
+  },
+  // galka: bryla obrotowa (podstawa przy drzwiczkach, szyjka, glowka zaokraglona), nakretka M4 w podstawie
+  knob(v) {
+    const warn = [], R = v.kD / 2, Hh = v.kH, r0 = Math.max(6.5, Math.min(R * 0.55, 10)), rn = Math.max(5.5, r0 * 0.75), N = 64;
+    // profil r(z): podstawa r0, szyjka rn, glowka R, wierzch zaokraglony
+    const zs = [], rs = [], add = (z, r) => { zs.push(z); rs.push(r); };
+    // spod glowki stozkiem 45 stopni - drukuje sie bez podpor (podstawa na stole)
+    const zn = Hh * 0.3, zh = Math.min(Hh - 3, Math.max(Hh * 0.6, zn + (R - rn) + 0.5));
+    if (zn + (R - rn) + 0.5 > Hh - 3) warn.push('Gałka niska jak na tę średnicę - spód główki będzie bardziej płaski (może potrzebować podpór).');
+    add(0, r0); add(1.5, r0); 
+    for (let i = 1; i <= 8; i++) { const t = i / 8; add(1.5 + (zn - 1.5) * t, r0 + (rn - r0) * (0.5 - 0.5 * Math.cos(Math.PI * t))); }
+    for (let i = 1; i <= 10; i++) { const t = i / 10; add(zn + (zh - zn) * t, rn + (R - rn) * t); }
+    for (let i = 1; i <= 12; i++) { const a = Math.PI / 2 * i / 12; add(zh + (Hh - zh) * Math.sin(a), i === 12 ? 0.01 : R * Math.cos(a)); }
+    const T = [], rings = zs.map((z, i) => ringPts(N, Math.max(0.01, rs[i]), Math.max(0.01, rs[i]), z));
+    for (let i = 0; i < rings.length - 1; i++) loft(T, rings[i], rings[i + 1]);
+    capDown(T, rings[0], [0, 0, 0]); capUp(T, rings[rings.length - 1], [0, 0, Hh]);
+    let M = CSG.fromTris(T);
+    // otwor M4 + gniazdo na nakretke w podstawie (nakretka przy drzwiczkach, sruba od srodka)
+    const cyl = (rr, z0, z1, n, rot) => { const C = [], A = ringPts(n, rr, rr, z0, rot), B = ringPts(n, rr, rr, z1, rot); loft(C, A, B); capDown(C, A, [0, 0, z0]); capUp(C, B, [0, 0, z1]); return C; };
+    const depth = Math.min(14, zh);
+    if (v.mount === 'nut') { M = CSG.subtract(M, CSG.fromTris(cyl(7.3 / Math.sqrt(3), -1, 3.6, 6, Math.PI / 6))); M = CSG.subtract(M, CSG.fromTris(cyl(2.25, -1, depth, 32))); }
+    else if (v.mount === 'insert') M = CSG.subtract(M, CSG.fromTris(cyl(2.8, -1, 7, 32)));
+    else M = CSG.subtract(M, CSG.fromTris(cyl(1.7, -1, depth, 32)));
+    if (r0 < 6.5) warn.push('Podstawa mała na nakrętkę - zwiększ średnicę gałki.');
+    const K = CSG.toTris(M), dep = v.mount === 'nut' ? depth - 1 : v.mount === 'insert' ? 6 : depth - 1;
+    const std = [12, 16, 20, 25, 30, 35, 40, 45, 50], need = v.door + (v.mount === 'nut' ? 4 : dep), scr = std.find(x => x >= need - 1) || Math.round(need);
+    return { parts: [{ name: 'Gałka (podstawą na stół)', file: 'galka_' + v.kD + 'mm', tris: G.toBed(K), asmTris: K, count: 1, color: COL[1], asm: [[0, 0, 0]] }], warn,
+      info: [['Gałka', 'Ø' + f1(v.kD) + ' × ' + f1(Hh) + ' mm'], ['Śruba', 'M4 × ' + scr + ' mm (drzwiczki ' + f1(v.door) + ' mm)']],
+      bom: [v.mount === 'nut' ? 'nakrętka M4 - wciśnij w sześciokątne gniazdo w podstawie' : v.mount === 'insert' ? 'wkładka gwintowana M4 (Ø5,6) - wciśnij lutownicą' : 'śruba M4 sama zrobi gwint', 'śruba M4 × ' + scr + ' od środka drzwiczek'] };
   } },
+
 /* ---------- 2b. obudowa TFT zaokraglona (jak gotowe obudowy na termostaty / czujniki) ---------- */
 { id: 'tftcase', name: 'Obudowa TFT zaokrąglona', icon: 'tftcase',
   desc: 'Płaska obudowa z ekranem na wierzchu: zaokrąglone dłuższe boki, szczeliny wentylacyjne w rogach, spód przykręcany 4 wkrętami. Ekran przesuwasz na rysunku.',

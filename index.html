@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.87</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.88</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -1762,6 +1762,9 @@ const TPLS = [
     { k: 'Dg', label: 'Szybka - od rogu do rogu', def: 82.7, min: 30, max: 300, step: 0.1, group: 'Szybka' },
     { k: 'gt', label: 'Grubość szybki', def: 0.4, min: 0.2, max: 3, step: 0.2, hint: '0,4 mm = 2 warstwy - mocno przepuszcza światło' },
     { k: 'gc', label: 'Luz szybki w ramce', def: 0.15, min: 0, max: 1, step: 0.05, fit: 1, hint: 'z każdej strony' },
+    { k: 'rh', label: 'Rant (nosek) pod szybką - wysokość', def: 2, min: 0, max: 8, step: 0.5, hint: 'pierścień od spodu szybki wchodzi do środka obudowy - trzyma bez kleju; 0 = bez rantu' },
+    { k: 'rt', label: 'Rant - grubość', def: 0.9, min: 0.4, max: 3, step: 0.1, show: (v) => v.rh > 0, hint: '0,9 mm = 2 ścieżki dyszy 0,4' },
+    { k: 'rc', label: 'Rant - luz w obudowie', def: 0.15, min: 0.02, max: 0.6, step: 0.02, fit: 1, show: (v) => v.rh > 0, hint: 'szybka wypada → mniej (−0,05); nie wchodzi → więcej' },
     { k: 'H', label: 'Wysokość obudowy', def: 25, min: 8, max: 80, step: 0.5, group: 'Obudowa', hint: 'od spodu do wierzchu (z szybką)' },
     { k: 'tw', label: 'Ramka wokół szybki', def: 1.5, min: 1.2, max: 8, step: 0.2, hint: 'ile obudowy widać dookoła szybki' },
     { k: 'ledge', label: 'Półka pod szybką', def: 1.3, min: 0.8, max: 6, step: 0.2, hint: 'na czym leży szybka (do środka)' },
@@ -1811,8 +1814,19 @@ const TPLS = [
     const BT = CSG.toTris(B);
     const parts = [{ name: 'Obudowa (dnem na stół)', file: 'panel_hex_obudowa', tris: G.toBed(BT), asmTris: BT, count: 1, color: COL[1], asm: [[0, 0, 0]] }];
     // szybka
-    const GT = hex(Rg, 0, v.gt);
-    parts.push({ name: 'Szybka ' + String(v.gt).replace('.', ',') + ' mm (biały / naturalny PLA)', file: 'panel_hex_szybka', tris: G.toBed(GT), asmTris: G.move(GT, 0, 0, H - v.gt), count: 1, color: '#eef2f4', asm: [[0, 0, 0]] });
+    // szybka + rant (nosek) od spodu, wchodzi ciasno w obudowe pod polka - drukowana rantem do gory
+    let GT = hex(Rg, 0, v.gt);
+    if (v.rh > 0) {
+      const ro = Rc - v.rc / c30, ri = ro - v.rt / c30;
+      if (ri < 3) warn.push('Rant za gruby - nie mieści się w panelu.');
+      else {
+        if (v.rh > H - v.gt - fl - 1) warn.push('Rant za wysoki - sięga do dna.');
+        if (v.cw > 0 && sides.length && v.rh > H - v.gt - Math.min(H - v.gt - 1, fl + v.ch) - 0.5) warn.push('Rant zachodzi na przejście na kabel - zmniejsz rant albo wysokość przejścia.');
+        GT = CSG.toTris(CSG.union(P(GT), CSG.subtract(P(hex(ro, v.gt - 0.01, v.gt + v.rh)), P(hex(ri, v.gt - 1, v.gt + v.rh + 1)))));
+      }
+    }
+    const GA = G.move(G.flipX(GT), 0, 0, H);   // do zlozenia: odwrocona rantem w dol
+    parts.push({ name: 'Szybka ' + String(v.gt).replace('.', ',') + ' mm' + (v.rh > 0 ? ' z rantem' : '') + ' (biały / naturalny PLA)', file: 'panel_hex_szybka', tris: G.toBed(GT), asmTris: GA, count: 1, color: '#eef2f4', asm: [[0, 0, 0]] });
     // lacznik: dwa jaskolcze ogony grzbietami do siebie (luz z kazdej strony)
     if (v.join === 'dove' && v.nC > 0) {
       const lc = fitSaved() == null ? 0.15 : +clamp(fitSaved(), 0.05, 0.4).toFixed(2), Lt = [], h = ph - 0.3;
@@ -1824,7 +1838,7 @@ const TPLS = [
     const flat = 2 * ao;
     return { parts, warn,
       info: [['Panel z zewnątrz', f1(2 * Ro) + ' mm od rogu do rogu, ' + f1(flat) + ' mm bok-bok, wys. ' + f1(H)], ['Szybka', f1(v.Dg) + ' mm od rogu do rogu × ' + String(v.gt).replace('.', ',') + ' mm'], ['Miejsce w środku', f1(2 * Rc) + ' mm (róg-róg) × ' + f1(H - v.gt - fl) + ' mm wysokości']],
-      bom: ['Panele kładziesz bokami do siebie, łączniki wsuwasz od spodu w gniazda (po 2 na bok) - sąsiedni panel musi mieć wybrany bok naprzeciwko', 'Przejścia na kabel w sąsiednich panelach są naprzeciwko siebie - kabel przechodzi z panelu do panelu', 'Szybkę drukuj płasko z białego albo naturalnego PLA, wypełnienie 100%'] };
+      bom: ['Panele kładziesz bokami do siebie, łączniki wsuwasz od spodu w gniazda (po 2 na bok) - sąsiedni panel musi mieć wybrany bok naprzeciwko', 'Przejścia na kabel w sąsiednich panelach są naprzeciwko siebie - kabel przechodzi z panelu do panelu', 'Szybkę drukuj płasko (rantem do góry) z białego albo naturalnego PLA, wypełnienie 100%', 'Rant wchodzi ciasno pod półkę w obudowie - szybka trzyma się bez kleju; jak za luźno, zmniejsz „Rant - luz” o 0,05 mm'] };
   } },
 /* ---------- 2b. obudowa TFT zaokraglona (jak gotowe obudowy na termostaty / czujniki) ---------- */
 { id: 'tftcase', name: 'Obudowa TFT zaokrąglona', icon: 'tftcase',

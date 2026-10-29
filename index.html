@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.88</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.89</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -5587,7 +5587,10 @@ function mf3Plate(items, title) {
       asmId.set(key, nid); out.push('<object id="' + nid + '" type="model" name="' + xe(it.name) + '"><components>' + refs[i].map(k => '<component objectid="' + (k + 2) + '"/>').join('') + '</components></object>\n');
       const e0 = filOf(objs[refs[i][0]]);
       cfg.push('  <object id="' + nid + '">\n    <metadata key="name" value="' + xe(it.name) + '"/>\n    <metadata key="extruder" value="' + e0 + '"/>\n');
-      for (const k of refs[i]) cfg.push('    <part id="' + (k + 2) + '" subtype="normal_part">\n      <metadata key="name" value="' + xe(objs[k].name) + '"/>\n      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n      <metadata key="extruder" value="' + filOf(objs[k]) + '"/>\n    </part>\n');
+      // osobna czesc obok (np. nakretka przy srubie) = ten sam filament co pierwsza; inny numer tylko gdy kolor siedzi W/NA innej czesci (napis)
+      const bb = refs[i].map(k => G.bbox(objs[k].tris)), hit = (x, y) => [0, 1, 2].every(d => x.mn[d] < y.mx[d] - 0.01 && y.mn[d] < x.mx[d] - 0.01);
+      const filK = (j) => bb.some((q, m) => m !== j && hit(bb[j], q)) ? filOf(objs[refs[i][j]]) : e0;
+      refs[i].forEach((k, j) => cfg.push('    <part id="' + (k + 2) + '" subtype="normal_part">\n      <metadata key="name" value="' + xe(objs[k].name) + '"/>\n      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n      <metadata key="extruder" value="' + filK(j) + '"/>\n    </part>\n'));
       cfg.push('  </object>\n');
       nid++;
     }

@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.91</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.92</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -952,6 +952,7 @@ const ICONS = {
   shield: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 9 17 5 29 9"/><path d="M5 15 17 11 29 15"/><path d="M5 21 17 17 29 21"/><path d="M5 27h24"/></g><path d="M8 9v18M26 9v18" stroke="#c98a3a" stroke-width="2"/></svg>',
   box: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12 17 6l13 6v12l-13 6-13-6z"/><path d="M4 12l13 6 13-6M17 18v12"/></g><rect x="24" y="17" width="4" height="3" fill="#c98a3a"/></svg>',
   mold: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 13v14h28V13"/><path d="M3 13h4M27 13h4"/></g><path d="M17 9.5l2.3 4.7 5.2.8-3.8 3.6.9 5.1L17 21.3l-4.6 2.4.9-5.1-3.8-3.6 5.2-.8z" fill="#c98a3a"/></svg>',
+  wortuhr: '<svg viewBox="0 0 34 34"><rect x="3" y="3" width="28" height="28" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><g fill="currentColor" font-family="Arial" font-weight="bold" font-size="6.5"><text x="6" y="12">ES</text><text x="17" y="12" fill="#e9c46a">IST</text><text x="6" y="20" fill="#e9c46a">HALB</text><text x="6" y="28">ZEHN</text></g></svg>',
   hexled: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M10 4h14l7 13-7 13H10L3 17z"/></g><path d="M12 9h10l5 8-5 8H12l-5-8z" fill="#e9c46a" opacity=".55"/></svg>',
   handle: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22c4-9 22-9 26 0"/><path d="M10 18v8M24 18v8"/></g><path d="M3 28h28" stroke="#c98a3a" stroke-width="2"/></svg>',
   organizer: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="6" width="26" height="22" rx="3"/><path d="M13 6v22M21 6v22M4 17h26"/></g></svg>',
@@ -1756,6 +1757,111 @@ const TPLS = [
   } },
 
 /* ---------- 2a3. panel LED szesciokatny (obudowa + szybka + laczniki) ---------- */
+{ id: 'wortuhr', name: 'Wortuhr (zegar słowny)', icon: 'wortuhr',
+  desc: 'Niemiecki zegar słowny: front z literami w dwóch kolorach (czarny + białe litery), kratka świetlna z ramą i tylna płyta pod taśmy WS2812B. Program na ESP zrobimy osobno.',
+  p: [
+    { k: 'ledm', label: 'Taśma LED - diod na metr', def: '60', opts: [['60', '60 LED/m (odstęp 16,7 mm) - polecam'], ['74', '74 LED/m (13,5 mm)'], ['96', '96 LED/m (10,4 mm)'], ['100', '100 LED/m (10 mm)'], ['30', '30 LED/m (33,3 mm) - za duże na stół']], group: 'Rozmiar', hint: 'odstęp diod = rozmiar jednej litery; cały zegar to 13 × 12 takich pól' },
+    { k: 'lh', label: 'Wysokość liter (% pola)', def: 58, min: 30, max: 85, step: 1 },
+    { k: 'font', label: 'Czcionka', def: 'arial', opts: [['arial', 'Arial (prosta)'], ['black', 'Arial Black (gruba)'], ['verdana', 'Verdana (szeroka)'], ['courier', 'Courier (maszynowa)'], ['stencil', 'Stencil']] },
+    { k: 'bold', label: 'Pogrubienie', def: 'yes', opts: [['yes', 'tak'], ['no', 'nie']] },
+    { k: 'ft', label: 'Front - grubość', def: 1.2, min: 0.6, max: 3, step: 0.2, group: 'Front', hint: 'białe litery na całą grubość - im cieńsze, tym jaśniej świecą' },
+    { k: 'dots', label: 'Kropki minut w rogach', def: 'yes', opts: [['yes', 'tak (4 diody: +1 … +4 minuty)'], ['no', 'nie']] },
+    { k: 'gh', label: 'Kratka - wysokość (od diod do frontu)', def: 12, min: 5, max: 40, step: 0.5, group: 'Kratka i rama', hint: 'wyżej = równiejsze światło w literze' },
+    { k: 'gw', label: 'Kratka - grubość ścianek', def: 1.2, min: 0.8, max: 3, step: 0.2 },
+    { k: 'sw', label: 'Wycięcie na taśmę - szerokość', def: 11, min: 5, max: 16, step: 0.5, hint: 'taśma 10 mm + luz; wycięcie w ściankach przy dnie' },
+    { k: 'sh', label: 'Wycięcie na taśmę - wysokość', def: 3, min: 1, max: 6, step: 0.5 },
+    { k: 'fw', label: 'Rama - grubość', def: 3, min: 1.6, max: 8, step: 0.2 },
+    { k: 'bt', label: 'Tylna płyta - grubość', def: 2.4, min: 1.6, max: 5, step: 0.2, group: 'Tył' },
+    { k: 'hang', label: 'Zawieszenie', def: 'key', opts: [['key', '2 dziurki od klucza (na wkręt w ścianie)'], ['none', 'bez']] },
+    { k: 'cab', label: 'Otwór na kabel (średnica)', def: 8, min: 0, max: 20, step: 0.5, hint: '0 = bez' }
+  ],
+  build(v) {
+    const warn = [], info = [];
+    const P = 1000 / +v.ledm, NC = 11, NR = 10;
+    const W = (NC + 2) * P, H = (NR + 2) * P;   // jedno pole marginesu dookola (rogi = kropki minut)
+    const bed = printer().bed;
+    if (W > bed[0] || H > bed[1]) warn.push('Zegar ' + f1(W) + ' × ' + f1(H) + ' mm nie mieści się na stole ' + bed[0] + ' × ' + bed[1] + ' mm - wybierz gęstszą taśmę.');
+    const LAY = ['ESKISTAFÜNF', 'ZEHNZWANZIG', 'DREIVIERTEL', 'VORFUNKNACH', 'HALBAELFÜNF', 'EINSXAMZWEI', 'DREIPMJVIER', 'SECHSNLACHT', 'SIEBENZWÖLF', 'ZEHNEUNKUHR'];
+    // --- bitmapa (r mm na piksel): 1 = material; zamiana na bryle przez textSolid ---
+    const r = 0.2, cols = Math.ceil(W / r), rows = Math.ceil(H / r);
+    const solid = (bits, z0, z1) => { const T = textSolid({ cols, rows, bits, mm: r, w: cols * r, h: rows * r }, z1 - z0); return G.move(T, cols * r / 2, rows * r / 2, (z0 + z1) / 2); };   // lewy dolny rog = 0,0
+    const canvasBits = (draw) => {
+      const c = document.createElement('canvas'); c.width = cols; c.height = rows;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cols, rows); g.fillStyle = '#000'; g.strokeStyle = '#000';
+      g.setTransform(1 / r, 0, 0, -1 / r, 0, rows);   // jednostki = mm, y do gory
+      draw(g);
+      const d = g.getImageData(0, 0, cols, rows).data, b = new Uint8Array(cols * rows);
+      for (let i = 0; i < b.length; i++) b[i] = d[i * 4] < 128 ? 1 : 0;   // canvas: wiersz 0 = gora - tak jak textSolid
+      return b;
+    };
+    const cx = (q) => (q + 1.5) * P, cy = (w) => H - (w + 1.5) * P;   // srodek pola: kolumna q, wiersz w (od gory)
+    const corners = [[-1, -1], [NC, -1], [NC, NR], [-1, NR]];         // +1 lewa gora, +2 prawa gora, +3 prawa dol, +4 lewa dol
+    // --- litery (biale) ---
+    const fam = (TXT_FONTS[v.font] || TXT_FONTS.arial)[1], capMM = P * v.lh / 100;
+    const letters = canvasBits((g) => {
+      g.save(); g.setTransform(1, 0, 0, 1, 0, 0);   // tekst w pikselach (bez odbicia)
+      const fs0 = 200; g.font = (v.bold === 'yes' ? 'bold ' : '') + fs0 + 'px ' + fam;
+      const capPx0 = g.measureText('H').actualBoundingBoxAscent || fs0 * 0.72, fs = fs0 * (capMM / r) / capPx0;
+      g.font = (v.bold === 'yes' ? 'bold ' : '') + fs.toFixed(1) + 'px ' + fam; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      for (let w = 0; w < NR; w++) for (let q = 0; q < NC; q++) {
+        const ch = LAY[w][q], m = g.measureText(ch), capH = (m.actualBoundingBoxAscent || capMM / r);
+        g.fillText(ch, cx(q) / r, (H - cy(w)) / r + capMM / r / 2 + (ch === 'Ü' || ch === 'Ö' ? (capH - capMM / r) / 2 : 0));
+      }
+      g.restore();
+      if (v.dots === 'yes') for (const [q, w] of corners) { g.beginPath(); g.arc(cx(q), cy(w), Math.max(1.5, P * 0.14), 0, 7); g.fill(); }
+    });
+    const front = new Uint8Array(letters.length); for (let i = 0; i < front.length; i++) front[i] = letters[i] ? 0 : 1;
+    // --- kratka + rama: sciany miedzy polami liter, ramka wokol kropek, sruby w polach brzegowych ---
+    const scr = [[W / 2, P / 2 + v.fw / 2], [W / 2, H - P / 2 - v.fw / 2], [P / 2 + v.fw / 2, H / 2], [W - P / 2 - v.fw / 2, H / 2]];
+    const gridDraw = (g, low) => {
+      const t = v.gw;
+      g.fillRect(0, 0, W, v.fw); g.fillRect(0, H - v.fw, W, v.fw); g.fillRect(0, 0, v.fw, H); g.fillRect(W - v.fw, 0, v.fw, H);   // rama
+      const x0 = P, x1 = W - P, y0 = P, y1 = H - P;
+      for (let w = 0; w <= NR; w++) g.fillRect(x0 - t / 2, y0 + w * P - t / 2, x1 - x0 + t, t);                                  // poziome
+      for (let q = 0; q <= NC; q++) {                                                                                               // pionowe
+        const x = x0 + q * P - t / 2;
+        if (!low) g.fillRect(x, y0 - t / 2, t, y1 - y0 + t);
+        else for (let w = 0; w < NR; w++) { const yc = y0 + (w + 0.5) * P, hs = Math.min(v.sw, P - t - 1) / 2; g.fillRect(x, y0 + w * P - t / 2, t, yc - hs - (y0 + w * P - t / 2)); g.fillRect(x, yc + hs, t, y0 + (w + 1) * P + t / 2 - yc - hs); }
+      }
+      if (v.dots === 'yes') for (const [q, w] of corners) {   // komorka wokol kropki minut (z wycieciem na kabelki przy dnie)
+        const ccx = cx(q), ccy = cy(w), a = P * 0.42;
+        const R = (x, y, ww, hh) => g.fillRect(x, y, ww, hh);
+        if (!low) { R(ccx - a, ccy - a, 2 * a, t); R(ccx - a, ccy + a - t, 2 * a, t); R(ccx - a, ccy - a, t, 2 * a); R(ccx + a - t, ccy - a, t, 2 * a); }
+        else { R(ccx - a, ccy - a, a * 0.6, t); R(ccx + a * 0.4, ccy - a, a * 0.6, t); R(ccx - a, ccy + a - t, a * 0.6, t); R(ccx + a * 0.4, ccy + a - t, a * 0.6, t); R(ccx - a, ccy - a, t, 2 * a); R(ccx + a - t, ccy - a, t, 2 * a); }
+      }
+      for (const [x, y] of scr) { g.beginPath(); g.arc(x, y, 3.6, 0, 7); g.fill(); }   // slupki na sruby
+    };
+    const holesDraw = (g) => { g.fillStyle = '#fff'; for (const [x, y] of scr) { g.beginPath(); g.arc(x, y, 1.25, 0, 7); g.fill(); } };   // otwor 2,5 mm pod wkret M3
+    const gLow = canvasBits((g) => { gridDraw(g, true); holesDraw(g); });
+    const gHigh = canvasBits((g) => { gridDraw(g, false); holesDraw(g); });
+    const sh = Math.min(v.sh, v.gh - 1);
+    const GR = G.move(solid(gLow, 0, sh).concat(solid(gHigh, sh, v.gh)), 0, 0, 0);
+    // --- tylna plyta ---
+    const BP = []; G.box(BP, 0, 0, 0, W, H, v.bt);
+    const cut = [];
+    const cyl = (x, y, d) => { const A = ringPts(32, d / 2, d / 2, -1), B = ringPts(32, d / 2, d / 2, v.bt + 1), C = []; loft(C, A, B); capDown(C, A, [0, 0, -1]); capUp(C, B, [0, 0, v.bt + 1]); for (const q of C) cut.push([q[0] + x, q[1] + y, q[2]]); };
+    for (const [x, y] of scr) cyl(x, y, 3.4);
+    if (v.cab > 0) cyl(P * 0.75, P * 2.5, v.cab);   // kabel w lewym marginesie, przy gornych wierszach
+    if (v.hang === 'key') for (const x of [W * 0.25, W * 0.75]) { cyl(x, H - P * 1.6, 8); G.box(cut, x - 2, H - P * 1.6 - 9, -1, x + 2, H - P * 1.6, v.bt + 1); }
+    let BT = BP; if (cut.length) BT = CSG.toTris(CSG.subtract(CSG.fromTris(BP), CSG.fromTris(cut)));
+    // --- czesci ---
+    const zG = v.bt, zF = v.bt + v.gh;
+    const FR = solid(front, 0, v.ft), LT = solid(letters, 0, v.ft);
+    const FRp = G.flipX(FR), bb = G.bbox(FRp), off = [-(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -bb.mn[2]];   // drukowany przodem do stolu
+    const parts = [
+      { name: 'Front (czarny, przodem do stołu)', file: 'wortuhr_front', tris: G.move(FRp, ...off), asmTris: G.move(FR, 0, 0, zF), count: 1, color: '#2b2b2b', asm: [[0, 0, 0]] },
+      { name: 'Litery (biały, razem z frontem)', file: 'wortuhr_litery', tris: G.move(G.flipX(LT), ...off), asmTris: G.move(LT, 0, 0, zF), count: 1, color: '#f4f4f4', asm: [[0, 0, 0]], pair: true },
+      { name: 'Kratka świetlna z ramą', file: 'wortuhr_kratka', tris: G.toBed(GR), asmTris: G.move(GR, 0, 0, zG), count: 1, color: COL[1], asm: [[0, 0, 0]] },
+      { name: 'Tylna płyta (pod taśmy LED)', file: 'wortuhr_tyl', tris: G.toBed(BT), asmTris: BT, count: 1, color: COL[0], asm: [[0, 0, 0]] }
+    ];
+    const nLed = NR * NC + (v.dots === 'yes' ? 4 : 0);
+    info.push(['Zegar', f1(W) + ' × ' + f1(H) + ' × ' + f1(v.bt + v.gh + v.ft) + ' mm']);
+    info.push(['Litera', 'pole ' + f1(P) + ' mm, litera ' + f1(capMM) + ' mm']);
+    info.push(['Diody', nLed + ' szt. WS2812B (' + NR + ' rzędów po ' + NC + (v.dots === 'yes' ? ' + 4 kropki' : '') + ') - ok. ' + f1(nLed / +v.ledm + 0.1) + ' m taśmy']);
+    info.push(['Zasilacz', '5 V, min. ' + f1(Math.ceil(nLed * 0.02 + 0.5)) + ' A (przy białym na pełnej jasności do ' + f1(nLed * 0.06) + ' A)']);
+    return { parts, warn, info,
+      bom: [nLed + '× dioda WS2812B na taśmie ' + v.ledm + ' LED/m (rzędy po ' + NC + ' diod, wężykiem)', '4× wkręt M3 × 8 (tylna płyta do ramy)', 'Front drukuj w 2 kolorach: czarny + biały (CFS) - przodem do stołu, wypełnienie 100%', 'Kratkę drukuj z czarnego PLA - przez białe ścianki światło przechodzi do sąsiednich liter', 'ESP32 lub ESP8266 + zasilacz 5 V - program zrobimy osobno'] };
+  } },
 { id: 'hexled', name: 'Panel LED sześciokątny', icon: 'hexled',
   desc: 'Sześciokątny panel LED jak Nanoleaf: obudowa, cienka szybka (rozpraszacz) i łączniki na jaskółczy ogon zamiast śrub. Sam wybierasz boki z przejściem na kabel i łącznikiem.',
   p: [

@@ -127,7 +127,7 @@ button{cursor:pointer}
 .part i{width:12px;height:12px;border-radius:3px;grid-row:1/3}
 .part b{font-weight:600}
 .part .sz{font:500 12px var(--mono);color:var(--ink3);font-variant-numeric:tabular-nums}
-.part .fit{font-size:12px} .fit.ok{color:var(--good)} .fit.bad{color:var(--danger);font-weight:600}
+.mf3 .plN{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px} .mf3 .plN input{width:70px} .part .fit{font-size:12px} .fit.ok{color:var(--good)} .fit.bad{color:var(--danger);font-weight:600}
 .part .btn{grid-row:1/3;grid-column:3}
 .part .dlb{grid-row:1/3;grid-column:3;display:flex;flex-direction:column;gap:4px}
 .cost{margin-top:10px;border:2px solid var(--line, #c9d6de);border-radius:10px;padding:10px 10px 8px}
@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.89</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.91</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -1764,6 +1764,7 @@ const TPLS = [
     { k: 'gc', label: 'Luz szybki w ramce', def: 0.15, min: 0, max: 1, step: 0.05, fit: 1, hint: 'z każdej strony' },
     { k: 'rh', label: 'Rant (nosek) pod szybką - wysokość', def: 2, min: 0, max: 8, step: 0.5, hint: 'pierścień od spodu szybki wchodzi do środka obudowy - trzyma bez kleju; 0 = bez rantu' },
     { k: 'rt', label: 'Rant - grubość', def: 0.9, min: 0.4, max: 3, step: 0.1, show: (v) => v.rh > 0, hint: '0,9 mm = 2 ścieżki dyszy 0,4' },
+    { k: 'rD', label: 'Rant - od rogu do rogu (na zewnątrz)', def: 0, min: 0, max: 300, step: 0.1, show: (v) => v.rh > 0, hint: '0 = sam liczy do NOWEJ obudowy z Warsztatu. Do STAREJ obudowy wpisz tu wymiar jej wnętrza od rogu do rogu (luz i półka wtedy nie działają na rant)' },
     { k: 'rc', label: 'Rant - luz w obudowie', def: 0.15, min: 0.02, max: 0.6, step: 0.02, fit: 1, show: (v) => v.rh > 0, hint: 'szybka wypada → mniej (−0,05); nie wchodzi → więcej' },
     { k: 'H', label: 'Wysokość obudowy', def: 25, min: 8, max: 80, step: 0.5, group: 'Obudowa', hint: 'od spodu do wierzchu (z szybką)' },
     { k: 'tw', label: 'Ramka wokół szybki', def: 1.5, min: 1.2, max: 8, step: 0.2, hint: 'ile obudowy widać dookoła szybki' },
@@ -1815,9 +1816,11 @@ const TPLS = [
     const parts = [{ name: 'Obudowa (dnem na stół)', file: 'panel_hex_obudowa', tris: G.toBed(BT), asmTris: BT, count: 1, color: COL[1], asm: [[0, 0, 0]] }];
     // szybka
     // szybka + rant (nosek) od spodu, wchodzi ciasno w obudowe pod polka - drukowana rantem do gory
-    let GT = hex(Rg, 0, v.gt);
+    let GT = hex(Rg, 0, v.gt), rimInfo = [];
     if (v.rh > 0) {
-      const ro = Rc - v.rc / c30, ri = ro - v.rt / c30;
+      const ro = v.rD > 0 ? v.rD / 2 : Rc - v.rc / c30, ri = ro - v.rt / c30;   // rD: wlasny wymiar (stara obudowa)
+      if (ro > Rg - 0.3) warn.push('Rant szerszy niż szybka - zmniejsz „Rant - od rogu do rogu”.');
+      rimInfo = [['Rant pod szybką', f1(2 * ro) + ' mm od rogu do rogu (na zewnątrz), ' + String(v.rt).replace('.', ',') + ' mm grubości, ' + String(v.rh).replace('.', ',') + ' mm wysokości' + (v.rD > 0 ? ' - do starej obudowy' : ' - do nowej obudowy')]];
       if (ri < 3) warn.push('Rant za gruby - nie mieści się w panelu.');
       else {
         if (v.rh > H - v.gt - fl - 1) warn.push('Rant za wysoki - sięga do dna.');
@@ -1837,7 +1840,7 @@ const TPLS = [
     }
     const flat = 2 * ao;
     return { parts, warn,
-      info: [['Panel z zewnątrz', f1(2 * Ro) + ' mm od rogu do rogu, ' + f1(flat) + ' mm bok-bok, wys. ' + f1(H)], ['Szybka', f1(v.Dg) + ' mm od rogu do rogu × ' + String(v.gt).replace('.', ',') + ' mm'], ['Miejsce w środku', f1(2 * Rc) + ' mm (róg-róg) × ' + f1(H - v.gt - fl) + ' mm wysokości']],
+      info: [['Panel z zewnątrz', f1(2 * Ro) + ' mm od rogu do rogu, ' + f1(flat) + ' mm bok-bok, wys. ' + f1(H)], ['Szybka', f1(v.Dg) + ' mm od rogu do rogu × ' + String(v.gt).replace('.', ',') + ' mm'], ['Miejsce w środku', f1(2 * Rc) + ' mm (róg-róg) × ' + f1(H - v.gt - fl) + ' mm wysokości']].concat(rimInfo),
       bom: ['Panele kładziesz bokami do siebie, łączniki wsuwasz od spodu w gniazda (po 2 na bok) - sąsiedni panel musi mieć wybrany bok naprzeciwko', 'Przejścia na kabel w sąsiednich panelach są naprzeciwko siebie - kabel przechodzi z panelu do panelu', 'Szybkę drukuj płasko (rantem do góry) z białego albo naturalnego PLA, wypełnienie 100%', 'Rant wchodzi ciasno pod półkę w obudowie - szybka trzyma się bez kleju; jak za luźno, zmniejsz „Rant - luz” o 0,05 mm'] };
   } },
 /* ---------- 2b. obudowa TFT zaokraglona (jak gotowe obudowy na termostaty / czujniki) ---------- */
@@ -5039,6 +5042,7 @@ async function boardSave() {
   toast(dbLoaded ? 'Zapisano „' + r.name.trim() + '” w moich płytkach' : 'Dodano do moich płytek (dysk nie jest wczytana - nie zostanie zapamiętane)', 4000);
 }
 let dbLoaded = false, sdOk = false;
+let PLATE_N = 1;   // ile kompletow na stol (pole przy „Wszystko na jeden stół”)
 let cur = null;            // { id|null, name, tpl, v:{...} }  - id = null: jeszcze nie zapisany
 let built = null;          // wynik build()
 let mode = 'asm';
@@ -5077,6 +5081,7 @@ function newFromTpl(id) {
   openCur(true);
 }
 function openCur(resetCam) {
+  PLATE_N = 1;
   $('#mName').value = cur.name;
   FR.sel = cur.tpl === 'free' ? FR.sel.filter(id => freeObj(id)) : []; FR.undo = []; FR.redo = []; FR.drag = null; TOFREE.clear();
   // wlasny model zawsze otwiera sie w edycji klockow (widok "na stole" z szablonu nie przechodzi dalej)
@@ -5252,7 +5257,7 @@ function renderParts() {
   else exp.forEach((p, i) => { if (!p.pair) return; let m = i - 1; while (m >= 0 && exp[m].pair) m--; if (m < 0) return; let g = groups.find(x => x.main === exp[m]); if (!g) groups.push(g = { main: exp[m], title: exp[m].name + ' + ' + p.name.split(' (')[0].toLowerCase(), parts: [exp[m]] }); g.parts.push(p); });
   if (groups.length) h += groups.map((g, k) => `<div class="mf3"><button type="button" class="btn primary" data-3mf="${k}" title="Jeden plik 3MF: części są już złożone na swoich miejscach jako jeden obiekt">&#128230; 3MF: ${esc(g.title)}</button><small>${esc(slicerName())}: otwórz ten plik - to <b>jeden obiekt z ${g.parts.length} częściami</b>, już na swoich miejscach. Filamenty: <b>${esc(filLegend(g.parts))}</b> - takie kolory ustaw przy filamentach 01, 02… (brakujące dodaj „+”).</small></div>`).join('');
   const nz = exp.filter(p => !p.lazy).length;
-  if (nz > 1 || groups.length) h += `<div class="mf3 plate"><button type="button" class="btn primary" id="btnPlate" title="Jeden plik 3MF: wszystkie części ułożone obok siebie na stole drukarki${groups.length ? ', napisy w drugim kolorze na swoich miejscach' : ''}">&#128424; Wszystko na jeden stół (1 plik 3MF)</button><small>Otwórz w ${esc(slicerName())} - wszystko już leży na stole${groups.length ? ', napis jako druga część (wybierz mu kolor)' : ''}. Pocięcie i druk - gotowe.</small></div>`;
+  if (nz >= 1) h += `<div class="mf3 plate"><label class="plN" title="Ile razy położyć wszystkie części na stole - program sam je ułoży obok siebie">Ile kompletów na stół <input type="number" id="plateN" min="1" max="50" step="1" value="${PLATE_N}"></label><button type="button" class="btn primary" id="btnPlate" title="Jeden plik 3MF: wszystkie części ułożone obok siebie na stole drukarki${groups.length ? ', napisy w drugim kolorze na swoich miejscach' : ''}">&#128424; ${PLATE_N > 1 ? PLATE_N + '× wszystko na stół (3MF)' : 'Wszystko na jeden stół (1 plik 3MF)'}</button><small>Otwórz w ${esc(slicerName())} - wszystko już leży na stole${PLATE_N > 1 ? ' (' + PLATE_N + ' kompletów obok siebie)' : ''}${groups.length ? ', napis jako druga część (wybierz mu kolor)' : ''}. Pocięcie i druk - gotowe.</small></div>`;
   if (nz > 1 || groups.length) h += `<div class="mf3 zipall"><button type="button" class="btn" id="btnZipAll" title="Jeden plik ZIP: wszystkie STL${groups.length ? ' i 3MF' : ''} - w Chrome tylko jedno „Behalten”">&#128451; Wszystkie pliki naraz (ZIP)</button><small>Jeden plik zamiast kilku - Chrome zapyta tylko raz. Na komputerze: prawy klik na ZIP → <b>„Alle extrahieren…”</b>.</small></div>`;
   // ptaszki "do klockow": kilka czesci naraz do wlasnego modelu
   if (!built.free && vis.some(p => !p.pair)) {
@@ -5265,6 +5270,7 @@ function renderParts() {
   if ($('#btnToFree')) $('#btnToFree').onclick = () => freeFromTemplateParts([...TOFREE]);
   if ($('#btnToFreeAll')) $('#btnToFreeAll').onclick = () => { const all = vis.map((p, i) => p.pair ? -1 : i).filter(i => i >= 0); if (TOFREE.size === all.length) TOFREE.clear(); else all.forEach(i => TOFREE.add(i)); renderParts(); };
   if ($('#btnPlate')) $('#btnPlate').onclick = savePlate;
+  if ($('#plateN')) $('#plateN').onchange = (e) => { PLATE_N = clamp(Math.round(+e.target.value || 1), 1, 50); const L = plateLayout(PLATE_N); if (L.err) toast(PLATE_N + ' kompletów: ' + L.err, 5000); else if (PLATE_N > 1) toast('Na stole zmieści się ' + PLATE_N + ' kompletów (' + L.n + ' części) ✓', 3000); renderParts(); };
   if ($('#btnZipAll')) $('#btnZipAll').onclick = async () => {
     const base = fileSafe(cur.name), files = [], used = new Set(), uniq = (n) => { let x = n, k = 2; while (used.has(x)) x = n.replace(/(\.\w+)$/, '_' + (k++) + '$1'); used.add(x); return x; };
     for (const p of exp) { if (p.lazy || (p.pair && !built.free)) continue; files.push({ name: uniq(base + '_' + p.file + (p.count > 1 ? '_x' + p.count : '') + '.stl'), data: new Uint8Array(await stlBlob(p.tris, p.name).arrayBuffer()) }); }
@@ -5608,7 +5614,8 @@ function mf3Plate(items, title) {
   ].concat(png ? [{ name: 'Metadata/thumbnail.png', data: png }, { name: 'Metadata/plate_1.png', data: png }] : []));   // standard 3MF + nazwa uzywana przez Creality/Bambu/Orca
 }
 // rozklad wszystkich czesci na jednym stole (rzedami); null gdy sie nie miesci
-function plateLayout() {
+function plateLayout(mul) {
+  mul = Math.max(1, Math.round(mul || 1));
   const bed = printer().bed, exp = built.parts.filter(p => !p.ghost), groups = [];
   const src = built.free ? (exp.filter(p => p.pair).length > 1 ? [exp.filter(p => p.pair)] : exp.slice(0, 1).map(p => [p])) : [];
   if (!built.free) exp.forEach((p, i) => { if (p.pair) { if (groups.length) groups[groups.length - 1].push(p); } else groups.push([p]); });
@@ -5616,7 +5623,7 @@ function plateLayout() {
   for (const g of (built.free ? src : groups)) {
     if (g[0].lazy) return { err: 'liczę otwory - spróbuj za chwilę' };
     const bb = G.bbox([].concat(...g.map(p => p.tris))), mp = g.map(p => ({ name: p.name.split(' (')[0], tris: p.tris, color: p.color }));   // kopie uzywaja tych samych siatek
-    for (let k = 0; k < (g[0].count || 1); k++) list.push({ g, mp, bb, w: bb.size[0], d: bb.size[1] });
+    for (let k = 0; k < (g[0].count || 1) * mul; k++) list.push({ g, mp, bb, w: bb.size[0], d: bb.size[1] });
   }
   if (!list.length) return { err: 'brak części' };
   const gap = 6, W = bed[0] - 8, D = bed[1] - 8, rows = [];
@@ -5637,8 +5644,8 @@ function plateLayout() {
   return { items, n: list.length };
 }
 function savePlate() {
-  const L = plateLayout(); if (L.err) { toast('Jeden plik: ' + L.err, 5000); return; }
-  const name = fileSafe(cur.name) + '_caly_stol.3mf';
+  const L = plateLayout(PLATE_N); if (L.err) { toast('Jeden plik: ' + L.err + (PLATE_N > 1 ? ' (' + PLATE_N + ' kompletów - zmniejsz liczbę)' : ''), 6000); return; }
+  const name = fileSafe(cur.name) + (PLATE_N > 1 ? '_x' + PLATE_N : '') + '_caly_stol.3mf';
   download(name, mf3Plate(L.items, cur.name));
   toast('Pobrano ' + name + ' - ' + L.n + ' ' + (L.n === 1 ? 'część' : L.n < 5 ? 'części' : 'części') + ' już ułożone na stole. Otwórz w ' + slicerName() + ' i od razu drukuj.', 6000);
 }

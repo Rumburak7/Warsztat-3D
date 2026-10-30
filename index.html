@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.94</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.96</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -948,6 +948,7 @@ const SCREW_SELF = { M2: 1.8, M2_5: 2.2, M3: 2.7 };   // otwor pod wkret samogwi
    p: parametry (k, label, def, min, max, step, opts, hint, group). build(v) -> {parts, info, bom, warn}
    czesc: {name, file, tris (na stol), count, color, asm: [[dx,dy,dz,obrot], ...] (polozenie w widoku "Zlozone"), asmTris?} */
 const ICONS = {
+  spoolring: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="17" cy="17" r="13"/><circle cx="17" cy="17" r="4.5"/></g><circle cx="17" cy="17" r="14.6" fill="none" stroke="#e9c46a" stroke-width="2.4" stroke-dasharray="86 6"/></svg>',
   free: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 22l7-3.5 7 3.5-7 3.5z M4 22v4l7 3.5 7-3.5v-4 M11 25.5v4"/><circle cx="25" cy="12" r="6"/></g><path d="M12 6h8v8h-8z" fill="#c98a3a"/></svg>',
   shield: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 9 17 5 29 9"/><path d="M5 15 17 11 29 15"/><path d="M5 21 17 17 29 21"/><path d="M5 27h24"/></g><path d="M8 9v18M26 9v18" stroke="#c98a3a" stroke-width="2"/></svg>',
   box: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12 17 6l13 6v12l-13 6-13-6z"/><path d="M4 12l13 6 13-6M17 18v12"/></g><rect x="24" y="17" width="4" height="3" fill="#c98a3a"/></svg>',
@@ -1754,6 +1755,45 @@ const TPLS = [
     return { parts: [{ name: 'Gałka (podstawą na stół)', file: 'galka_' + v.kD + 'mm', tris: G.toBed(K), asmTris: K, count: 1, color: COL[1], asm: [[0, 0, 0]] }], warn,
       info: [['Gałka', 'Ø' + f1(v.kD) + ' × ' + f1(Hh) + ' mm'], ['Śruba', 'M4 × ' + scr + ' mm (drzwiczki ' + f1(v.door) + ' mm)']],
       bom: [v.mount === 'nut' ? 'nakrętka M4 - wciśnij w sześciokątne gniazdo w podstawie' : v.mount === 'insert' ? 'wkładka gwintowana M4 (Ø5,6) - wciśnij lutownicą' : 'śruba M4 sama zrobi gwint', 'śruba M4 × ' + scr + ' od środka drzwiczek'] };
+  } },
+
+/* ---------- 2a2b. pierscien na brzeg szpuli (szpula za mala / zle chodzi w CFS) ---------- */
+{ id: 'spoolring', name: 'Pierścień na szpulę', icon: 'spoolring',
+  desc: 'Pierścień nasuwany na brzeg szpuli filamentu - powiększa średnicę i daje gładki brzeg do toczenia po rolkach (np. CFS). Drukuj 2 sztuki.',
+  p: [
+    { k: 'D', label: 'Średnica szpuli teraz', group: 'Szpula', def: 195, min: 100, max: 300, step: 0.5, hint: 'zmierz przez środek, od brzegu do brzegu' },
+    { k: 'Dt', label: 'Średnica docelowa', def: 200, min: 100, max: 310, step: 0.5, hint: 'np. jak szpula, która chodzi lekko' },
+    { k: 't', label: 'Grubość brzegu szpuli', def: 3.9, min: 1, max: 10, step: 0.05, hint: 'suwmiarką, w najgrubszym miejscu rantu' },
+    { k: 'luz', label: 'Luz w rowku', group: 'Pierścień', def: 0.2, min: 0, max: 1, step: 0.05, hint: 'za ciasno → +0,1, za luźno → -0,1' },
+    { k: 's', label: 'Grubość ścianek bocznych', def: 1.0, min: 0.6, max: 3, step: 0.1, hint: 'każda ścianka poszerza szpulę' },
+    { k: 'd', label: 'Głębokość zaczepu', def: 1.6, min: 0.6, max: 6, step: 0.1, hint: 'jak daleko ścianki zachodzą na boki szpuli' },
+    { k: 'slit', label: 'Przecięcie', def: 'yes', opts: [['yes', 'tak - rozginasz i nakładasz'], ['no', 'nie - pełny pierścień (musi się wcisnąć)']], hint: 'pełnego pierścienia z zaczepami nie da się nasunąć na sztywną plastikową szpulę' }
+  ],
+  build(v) {
+    const R = v.D / 2, Ro = Math.max(v.Dt / 2, R + v.luz + 0.8), g = v.t + v.luz, H = g + 2 * v.s, ri = R - v.d, rb = R + v.luz, warn = [];
+    if (v.Dt / 2 - rb < 1.2) warn.push('Pierścień bardzo cienki na obwodzie (' + f1(Math.max(0, v.Dt / 2 - rb)) + ' mm) - zwiększ średnicę docelową albo zmniejsz luz.');
+    if (v.Dt > 260) warn.push('Pierścień większy niż stół K2 (260 mm) - nie zmieści się.');
+    // profil C [r,z] (w kierunku przeciwnym do wskazowek zegara)
+    const ch = Math.min(0.5, v.d / 3);
+    const prof = [[ri + ch, 0], [Ro, 0], [Ro, H], [ri + ch, H], [ri, H - ch], [ri, H - v.s], [rb, H - v.s], [rb, v.s], [ri, v.s], [ri, ch]];
+    const N = 360, gapA = v.slit === 'yes' ? 1.2 / R : 0, a0 = gapA / 2, a1 = 2 * Math.PI - gapA / 2, T = [];
+    const steps = N;
+    const ang = (k) => v.slit === 'yes' ? a0 + (a1 - a0) * k / steps : 2 * Math.PI * (k % steps) / steps;
+    const P = (q, a) => [q[0] * Math.cos(a), q[0] * Math.sin(a), q[1]];
+    for (let k = 0; k < steps; k++) {
+      const a = ang(k), b = ang(k + 1);
+      for (let i = 0; i < prof.length; i++) {
+        const p = prof[i], q = prof[(i + 1) % prof.length];
+        T.push(P(p, a), P(q, a), P(q, b), P(p, a), P(q, b), P(p, b));
+      }
+    }
+    if (v.slit === 'yes') {
+      const tr = polyTris(prof);
+      for (const [i, j, k] of tr) { T.push(P(prof[i], a0), P(prof[k], a0), P(prof[j], a0)); T.push(P(prof[i], a1), P(prof[j], a1), P(prof[k], a1)); }
+    }
+    return { parts: [{ name: 'Pierścień na szpulę', file: 'pierscien_szpula_' + Math.round(v.D) + '_' + Math.round(v.Dt), tris: G.toBed(T), asmTris: T, count: 2, color: COL[0], asm: [[0, 0, 0], [0, 0, 70]] }], warn,
+      info: [['Pierścień', 'Ø' + f1(2 * Ro) + ' / wewn. Ø' + f1(2 * ri) + ' × ' + f1(H) + ' mm'], ['Szpula po założeniu', 'Ø' + f1(2 * Ro) + ', szersza o ' + f1(2 * v.s) + ' mm']],
+      bom: ['2 pierścienie - po jednym na każdy brzeg szpuli', v.slit === 'yes' ? 'rozegnij lekko w miejscu przecięcia, nałóż na brzeg i dociśnij dookoła; przecięcie można skleić kropelką kleju' : 'wciśnij dookoła na brzeg szpuli'] };
   } },
 
 /* ---------- 2a3. panel LED szesciokatny (obudowa + szybka + laczniki) ---------- */
@@ -5400,7 +5440,7 @@ function renderParts() {
   if (groups.length) h += groups.map((g, k) => `<div class="mf3"><button type="button" class="btn primary" data-3mf="${k}" title="Jeden plik 3MF: części są już złożone na swoich miejscach jako jeden obiekt">&#128230; 3MF: ${esc(g.title)}</button><small>${esc(slicerName())}: otwórz ten plik - to <b>jeden obiekt z ${g.parts.length} częściami</b>, już na swoich miejscach. Filamenty: <b>${esc(filLegend(g.parts))}</b> - takie kolory ustaw przy filamentach 01, 02… (brakujące dodaj „+”).</small></div>`).join('');
   const nz = exp.filter(p => !p.lazy).length;
   if (nz >= 1) h += `<div class="mf3 plate"><label class="plN" title="Ile razy położyć wszystkie części na stole - program sam je ułoży obok siebie">Ile kompletów na stół <input type="number" id="plateN" min="1" max="50" step="1" value="${PLATE_N}"></label><button type="button" class="btn primary" id="btnPlate" title="Jeden plik 3MF: wszystkie części ułożone obok siebie na stole drukarki${groups.length ? ', napisy w drugim kolorze na swoich miejscach' : ''}">&#128424; ${PLATE_N > 1 ? PLATE_N + '× wszystko na stół (3MF)' : 'Wszystko na jeden stół (1 plik 3MF)'}</button><small>Otwórz w ${esc(slicerName())} - wszystko już leży na stole${PLATE_N > 1 ? ' (' + PLATE_N + ' kompletów obok siebie)' : ''}${groups.length ? ', napis jako druga część (wybierz mu kolor)' : ''}. Pocięcie i druk - gotowe.</small></div>`;
-  if (nz > 1 || groups.length) h += `<div class="mf3 zipall"><button type="button" class="btn" id="btnZipAll" title="Jeden plik ZIP: wszystkie STL${groups.length ? ' i 3MF' : ''} - w Chrome tylko jedno „Behalten”">&#128451; Wszystkie pliki naraz (ZIP)</button><small>Jeden plik zamiast kilku - Chrome zapyta tylko raz. Na komputerze: prawy klik na ZIP → <b>„Alle extrahieren…”</b>.</small></div>`;
+  if (nz > 1 || groups.length) h += `<div class="mf3 zipall"><button type="button" class="btn" id="btnZipAll" title="Jeden plik ZIP: każda część jako 3MF z obrazkiem - w Chrome tylko jedno „Behalten”">&#128451; Wszystkie pliki naraz (ZIP)</button><small>Jeden plik zamiast kilku - Chrome zapyta tylko raz. Na komputerze: prawy klik na ZIP → <b>„Alle extrahieren…”</b>.</small></div>`;
   // ptaszki "do klockow": kilka czesci naraz do wlasnego modelu
   if (!built.free && vis.some(p => !p.pair)) {
     for (const i of [...TOFREE]) if (!vis[i] || vis[i].pair) TOFREE.delete(i);
@@ -5415,10 +5455,12 @@ function renderParts() {
   if ($('#plateN')) $('#plateN').onchange = (e) => { PLATE_N = clamp(Math.round(+e.target.value || 1), 1, 50); const L = plateLayout(PLATE_N); if (L.err) toast(PLATE_N + ' kompletów: ' + L.err, 5000); else if (PLATE_N > 1) toast('Na stole zmieści się ' + PLATE_N + ' kompletów (' + L.n + ' części) ✓', 3000); renderParts(); };
   if ($('#btnZipAll')) $('#btnZipAll').onclick = async () => {
     const base = fileSafe(cur.name), files = [], used = new Set(), uniq = (n) => { let x = n, k = 2; while (used.has(x)) x = n.replace(/(\.\w+)$/, '_' + (k++) + '$1'); used.add(x); return x; };
-    for (const p of exp) { if (p.lazy || (p.pair && !built.free)) continue; files.push({ name: uniq(base + '_' + p.file + (p.count > 1 ? '_x' + p.count : '') + '.stl'), data: new Uint8Array(await stlBlob(p.tris, p.name).arrayBuffer()) }); }
+    // kazda czesc jako 3MF (z obrazkiem - Windows pokazuje podglad zamiast ikonki STL); czesc glowna z napisem/literami tylko w 3MF grupy
+    const wGrupie = new Set(groups.map(g => g.main).filter(Boolean));
+    for (const p of exp) { if (p.lazy || (p.pair && !built.free) || wGrupie.has(p)) continue; files.push({ name: uniq(base + '_' + p.file + (p.count > 1 ? '_x' + p.count : '') + '.3mf'), data: new Uint8Array(await mf3Blob([{ name: p.name.split(' (')[0], tris: p.tris, color: p.color }], cur.name + ' - ' + p.name.split(' (')[0]).arrayBuffer()) }); }
     for (const g of groups) files.push({ name: uniq(base + '_' + fileSafe(g.title) + '.3mf'), data: new Uint8Array(await mf3Blob(g.parts.map(p => ({ name: p.name.split(' (')[0], tris: p.tris, color: p.color })), cur.name + ' - ' + g.title).arrayBuffer()) });
     download(base + '_pliki.zip', zipStore(files));
-    toast('Pobrano ' + files.length + ' plików w jednym ZIP-ie', 4000);
+    toast('Pobrano ' + files.length + ' plików 3MF (z obrazkami) w jednym ZIP-ie', 4000);
   };
   $('#parts').querySelectorAll('[data-3mf]').forEach(b => b.onclick = () => save3mf(groups[+b.dataset['3mf']]));
   $('#parts').querySelectorAll('[data-stl]').forEach(b => b.onclick = () => saveStl(exp[+b.dataset.stl]));

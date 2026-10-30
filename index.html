@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.93</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.94</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -1831,7 +1831,11 @@ const TPLS = [
         if (!low) { R(ccx - a, ccy - a, 2 * a, t); R(ccx - a, ccy + a - t, 2 * a, t); R(ccx - a, ccy - a, t, 2 * a); R(ccx + a - t, ccy - a, t, 2 * a); }
         else { R(ccx - a, ccy - a, a * 0.6, t); R(ccx + a * 0.4, ccy - a, a * 0.6, t); R(ccx - a, ccy + a - t, a * 0.6, t); R(ccx + a * 0.4, ccy + a - t, a * 0.6, t); R(ccx - a, ccy - a, t, 2 * a); R(ccx + a - t, ccy - a, t, 2 * a); }
       }
-      for (const [x, y] of scr) { g.beginPath(); g.arc(x, y, 3.6, 0, 7); g.fill(); }   // slupki na sruby
+      for (const [x, y] of scr) {   // slupki na sruby + zebro do ramy (przewody przechodza miedzy slupkiem a kratka)
+        g.beginPath(); g.arc(x, y, 3.6, 0, 7); g.fill();
+        if (y < H * 0.25) g.fillRect(x - 1.8, 0, 3.6, y); else if (y > H * 0.75) g.fillRect(x - 1.8, y, 3.6, H - y);
+        else if (x < W * 0.25) g.fillRect(0, y - 1.8, x, 3.6); else g.fillRect(x, y - 1.8, W - x, 3.6);
+      }
     };
     const holesDraw = (g) => { g.fillStyle = '#fff'; for (const [x, y] of scr) { g.beginPath(); g.arc(x, y, 1.25, 0, 7); g.fill(); } };   // otwor 2,5 mm pod wkret M3
     const gLow = canvasBits((g) => { gridDraw(g, true); holesDraw(g); });

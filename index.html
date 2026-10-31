@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.98</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v4.99</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3461,12 +3461,13 @@ function freeCompute() {
   const t0 = performance.now();
   const solids = objs.filter(o => !o.hole), hc = [];
   for (const o of objs) if (o.hole) for (const t of freeWorldComps(o)) hc.push({ T: t, bb: G.bbox(t), p: null });
-  const byColor = new Map(), stat = { cut: 0 };
+  const byColor = new Map(), stat = { cut: 0 }, tplCol = new Map();   // tplCol: kolor zlozony tylko z czesci szablonow
   for (const o of solids) {
     const out = [];
     for (const t of freeCutShells(freeWorldComps(o), hc, stat)) for (const p of t) out.push(p);
     const c = o.color || FREE_COLORS[0][0];
     if (!byColor.has(c)) byColor.set(c, []);
+    tplCol.set(c, (tplCol.has(c) ? tplCol.get(c) : true) && o.type === 'tpl');
     const arr = byColor.get(c); for (const p of out) arr.push(p);
   }
   // kilka kolorow: gdzie bryly roznych kolorow na siebie zachodza (np. napis wlozony w pokrywe), wygrywa mniejsza bryla -
@@ -3480,11 +3481,13 @@ function freeCompute() {
       const A = byColor.get(order[i]), ba = G.bbox(A), later = [];
       for (let j = i + 1; j < order.length; j++) {
         const Tj = byColor.get(order[j]); if (vol.get(order[j]) > vol.get(order[i]) * 0.25) continue;
+        if (tplCol.get(order[i]) && tplCol.get(order[j])) continue;   // czesci z szablonu (np. front + litery) juz do siebie pasuja - nie wycinaj (CSG duzych siatek zawiesza przegladarke)
         const bj = G.bbox(Tj); if (ba.mx[0] < bj.mn[0] || bj.mx[0] < ba.mn[0] || ba.mx[1] < bj.mn[1] || bj.mx[1] < ba.mn[1] || ba.mx[2] < bj.mn[2] || bj.mx[2] < ba.mn[2]) continue;
         for (const p of Tj) later.push(p);
       }
       if (!later.length) continue;
       const bl = G.bbox(later);
+      if ((A.length + later.length) / 3 > 30000) { stat.slowCol = true; continue; }   // za duze na CSG w przegladarce
       if (ba.mx[0] < bl.mn[0] || bl.mx[0] < ba.mn[0] || ba.mx[1] < bl.mn[1] || bl.mx[1] < ba.mn[1] || ba.mx[2] < bl.mn[2] || bl.mx[2] < ba.mn[2]) continue;
       try { const R = CSG.toTris(CSG.subtract(CSG.fromTris(A), CSG.fromTris(later))); if (R.length) byColor.set(order[i], R); } catch (e) { /* zostaje bez wycinania */ }
     }
@@ -3501,6 +3504,7 @@ function freeCompute() {
   if (all.length && bb.mn[2] > 0.05) warn.push('Najniższy punkt modelu jest ' + f1(bb.mn[2]) + ' mm nad stołem - w pliku STL i tak leży na stole.');
   if (all.length && bb.mn[2] < -0.05) warn.push('Część modelu jest pod stołem (' + f1(bb.mn[2]) + ' mm) - w pliku STL model zostanie podniesiony na stół.');
   if (!solids.length && objs.length) warn.push('Same otwory - dodaj bryłę, z której mają być wycięte.');
+  if (stat.slowCol) warn.push('Napis/wstawka w drugim kolorze nie została wycięta z większej bryły (za dużo trójkątów) - jeśli wchodzą w siebie, slicer może to zgłosić.');
   if (stat.big) warn.push('Otwór w bardzo dokładnym miejscu modelu (ponad 60 000 trójkątów przy otworze) - tego nie wycinam, bo przeglądarka by stanęła. Wytnij go w slicerze (np. „Negativ-Teil” / „Modifier”).');
   // w trakcie przesuwania (kilka kolorow bez wycinania wstawek) - wynik tymczasowy, po puszczeniu myszki liczy sie jeszcze raz
   FR.cache = { key: (FR.drag && byColor.size > 1) ? key + '|tmp' : key, parts, warn, ms: performance.now() - t0, cut: stat.cut, colors: byColor.size };

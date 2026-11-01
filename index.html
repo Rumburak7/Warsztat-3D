@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.01</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.02</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3440,7 +3440,7 @@ function freeClean(src, depth) {
       teeth: n(o.teeth, 20, 6, 200), bore: n(o.bore, 5, 0, 500), tdep: n(o.tdep, 0, 0, 100), t2: n(o.t2, 20, 6, 200),
       rad: n(o.rad, 3, 0, 500), cab: n(o.cab, 6, 1, 200), msz: [0, 2, 2.5, 3, 4, 5, 6].includes(o.msz) ? o.msz : 3, head: ['stoz', 'walc', 'brak'].includes(o.head) ? o.head : 'stoz',
       tm: n(o.tm, 10, 3, 60), pitch: n(o.pitch, 0, 0, 10), blen: n(o.blen, 25, 1, 400), bhead: ['hex', 'okr', 'brak'].includes(o.bhead) ? o.bhead : 'hex', clr: n(o.clr, 0.25, 0, 1), fil: n(o.fil, 0, 0, 500), kn: n(o.kn, 5, 3, 31), hclr: n(o.hclr, 0.4, 0.1, 1.5), barb: n(o.barb, 1, 0.3, 4), cell: n(o.cell, 5, 1.5, 60), web: n(o.web, 1.6, 0.6, 30), vpat: ['hex', 'slot', 'circle'].includes(o.vpat) ? o.vpat : 'hex', lt: LED_TYPES[o.lt] ? o.lt : '5', ln: n(o.ln, 5, 1, 200), lp: n(o.lp, 7, 1, 300), lrow: n(o.lrow, 1, 1, 50), lmode: o.lmode === 'fit' ? 'fit' : 'pitch', llen: n(o.llen, 50, 1, 2000), lclr: n(o.lclr, 0.2, 0, 1), lshape: ['row', 'ring', 'arc'].includes(o.lshape) ? o.lshape : 'row', lang: n(o.lang, 180, 10, 359),
-      mx: !!o.mx, my: !!o.my, mz: !!o.mz, meshId: typeof o.meshId === 'string' ? o.meshId.slice(0, 24) : undefined });
+      mx: !!o.mx, my: !!o.my, mz: !!o.mz, meshId: typeof o.meshId === 'string' ? o.meshId.slice(0, 24) : undefined, link: typeof o.link === 'string' ? o.link.slice(0, 24) : undefined });
     if (o.type === 'group') { const last = v.objs[v.objs.length - 1]; last.items = freeClean({ objs: o.items || [] }, (depth || 0) + 1).objs; last.gx = n(o.gx, 0, -2000, 2000); last.gy = n(o.gy, 0, -2000, 2000); last.gz = n(o.gz, 0, -2000, 2000); if (!last.items.length) v.objs.pop(); }
   }
   if (src && [0, 0.1, 0.5, 1, 2, 5, 10].includes(src.grid)) v.grid = src.grid;
@@ -3691,9 +3691,20 @@ function freeDuplicate() {
   const src = {}; for (const id of (repeat ? L.newIds : FR.sel)) { const o = freeObj(id); if (o) src[id] = Object.fromEntries(TRK.map(k => [k, o[k]])); }
   // pary: nowa kopia -> poprzednik
   const srcState = {}; const prev = repeat ? L.newIds : FR.sel; ns.forEach((nid, i) => { srcState[nid] = src[prev[i]]; });
-  FR.sel = ns; freeChanged(true);
+  freeRelink(ns); FR.sel = ns; freeChanged(true);
   for (const id of ns) { const o = freeObj(id); now[id] = Object.fromEntries(TRK.map(k => [k, o[k]])); }
   FR.lastDup = { newIds: ns, newState: now, srcState, n: repeat ? L.n + 1 : 1, repeat };
+}
+// czesci polaczone (np. ramka + litery w drugim kolorze z szablonu): klikniecie zaznacza cala pare
+function freeLinked(ids) {
+  const out = ids.slice(), lk = new Set(ids.map(id => (freeObj(id) || {}).link).filter(Boolean));
+  if (lk.size) for (const o of freeObjs()) if (o.link && lk.has(o.link) && !out.includes(o.id)) out.push(o.id);
+  return out;
+}
+// kopie dostaja nowe polaczenie (kopia nie zaznacza oryginalu)
+function freeRelink(ids) {
+  const m = {};
+  for (const id of ids) { const o = freeObj(id); if (o && o.link) { if (!m[o.link]) m[o.link] = 'L' + uid(); o.link = m[o.link]; } }
 }
 function freeCopy() { FR.clip = FR.sel.map(id => freeObj(id)).filter(Boolean).map(o => JSON.parse(JSON.stringify(o))); if (FR.clip.length) toast('Skopiowano ' + FR.clip.length + ' klock' + (FR.clip.length === 1 ? '' : 'i')); }
 function freePaste() {
@@ -3701,7 +3712,7 @@ function freePaste() {
   freePush(); const ns = [];
   for (const o of FR.clip) { const c = JSON.parse(JSON.stringify(o)); c.id = uid(); c.x = freeSnap(c.x + 10); c.y = freeSnap(c.y + 10); cur.v.objs.push(c); ns.push(c.id); }
   FR.clip = FR.clip.map(o => Object.assign({}, o, { x: o.x + 10, y: o.y + 10 }));
-  FR.sel = ns; freeChanged(true);
+  freeRelink(ns); FR.sel = ns; freeChanged(true);
 }
 function freeToBed() { if (!FR.sel.length) return; freePush(); for (const id of FR.sel) { const o = freeObj(id); if (o) o.z = 0; } freeChanged(true); }
 function freeAlign(axis, how) {
@@ -3996,7 +4007,7 @@ function freeAct(b, e) {
   if (b.dataset.act === 'thrAddNut') { freeThreadMatch('addNut'); return; }
   if (b.dataset.act === 'thrMatch') { freeThreadMatch('match'); return; }
   if (b.dataset.add) { const a = b.dataset.add; if (a === 'stl') freeImportStl(); else if (a === 'tplDlg') freeTplDialog(); else freeAddKey(a); return; }
-  if (b.dataset.sel) { const id = b.dataset.sel; if (e.shiftKey || e.ctrlKey) FR.sel = FR.sel.includes(id) ? FR.sel.filter(x => x !== id) : FR.sel.concat(id); else FR.sel = [id]; renderFreePanel(); v3Build(false); return; }
+  if (b.dataset.sel) { const id = b.dataset.sel; if (e.shiftKey || e.ctrlKey) FR.sel = FR.sel.includes(id) ? FR.sel.filter(x => x !== id) : FR.sel.concat(id); else FR.sel = freeLinked([id]); renderFreePanel(); v3Build(false); return; }
   if (b.dataset.hole) { freeSetHole(b.dataset.hole === '1'); return; }
   if (b.dataset.col) { freeSetColor(b.dataset.col); return; }
   if (b.dataset.al) { const [x, w] = b.dataset.al.split(','); freeAlign(x, w); return; }
@@ -4515,10 +4526,12 @@ function freeFromTemplateParts(list) {
       const p = parts[i], s = p.bb.size, mb = p.bb, cx = list.length > 1 ? x + s[0] / 2 : 0, cy = list.length > 1 ? y + r.d / 2 : 0;
       const o = freeNew('tpl', { tpl: t.id, tv, part: i, name: nm + ' - ' + p.name, x: +cx.toFixed(3), y: +cy.toFixed(3), z: 0 });
       cur.v.objs.push(o); FR.sel.push(o.id);
+      if (i + 1 < parts.length && parts[i + 1].pair) o.link = 'L' + uid();   // czesc z napisem: klikniecie zaznacza oba klocki
       // napis w drugim kolorze (czesci "pair" zaraz za ta czescia) idzie razem - na swoim miejscu, w swoim kolorze
       for (let j = i + 1; j < parts.length && parts[j].pair; j++) {
         const q = parts[j], qb = q.bb;
         const c = freeNew('tpl', { tpl: t.id, tv, part: j, name: nm + ' - ' + q.name.split(' (')[0], color: q.color, x: +(cx + (qb.mn[0] + qb.mx[0]) / 2 - (mb.mn[0] + mb.mx[0]) / 2).toFixed(3), y: +(cy + (qb.mn[1] + qb.mx[1]) / 2 - (mb.mn[1] + mb.mx[1]) / 2).toFixed(3), z: +(qb.mn[2] - mb.mn[2]).toFixed(3) });
+        if (o.link) c.link = o.link;
         cur.v.objs.push(c); FR.sel.push(c.id); extra++;
       }
       x += s[0] + gap;
@@ -4622,7 +4635,10 @@ function freeLabels() {
       const q = freeProject([hx < 0 ? mn[0] : mx[0], hy < 0 ? mn[1] : mx[1], mn[2]]);
       if (q) { block.push([q[0], q[1], 24, 24]); hh += `<span class="hd" data-hx="${hx}" data-hy="${hy}" title="Ciągnij, żeby zmienić rozmiar (Shift: proporcjonalnie)" style="left:${q[0].toFixed(0)}px;top:${q[1].toFixed(0)}px"></span>`; }
     }
-    // obrot (jak w Tinkercad): zakrzywione strzalki X / Y / Z
+    if (kz) { const q = freeProject([cx, cy, mx[2]]); if (q) { block.push([q[0], q[1], 24, 24]); hh += `<span class="hd hz" data-hz="1" title="Ciągnij w górę/dół - wysokość klocka" style="left:${q[0].toFixed(0)}px;top:${q[1].toFixed(0)}px"></span>`; } }
+  }
+  // obrot (jak w Tinkercad): zakrzywione strzalki X / Y / Z - tez dla kilku zaznaczonych (obraca cala grupe wokol wspolnego srodka)
+  if (!FR.drag) {
     const zc = (mn[2] + mx[2]) / 2;
     for (const [a, p, tip] of [['z', [mn[0], ys < 0 ? mx[1] : mn[1], mn[2]], 'wokół osi Z (jak kręcenie na stole)'], ['x', [mx[0] + gap * 0.9, cy, mx[2] + gap * 0.3], 'wokół osi X (przewraca do przodu / do tyłu)'], ['y', [cx, mn[1] - gap * 0.9, mx[2] + gap * 0.3], 'wokół osi Y (przewraca na lewo / prawo)']]) {
       let q = freeProject(p); if (!q) continue;
@@ -4630,7 +4646,6 @@ function freeLabels() {
       block.push([q[0], q[1], 44, 44]);
       hh += `<span class="hd rot r${a}" data-rot="${a}" title="Obrót ${tip} - ciągnij dookoła (płynnie co 1°, przykleja się do 45° i 90°; z Shift co 15°)" style="left:${q[0].toFixed(0)}px;top:${q[1].toFixed(0)}px"><svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.1-5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M13.5 3.5l4.2 1.8-1.4 4.4" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>${a.toUpperCase()}</b></span>`;
     }
-    if (kz) { const q = freeProject([cx, cy, mx[2]]); if (q) { block.push([q[0], q[1], 24, 24]); hh += `<span class="hd hz" data-hz="1" title="Ciągnij w górę/dół - wysokość klocka" style="left:${q[0].toFixed(0)}px;top:${q[1].toFixed(0)}px"></span>`; } }
   }
   const topQ = freeProject([cx, cy, mx[2]]);
   if (!FR.drag && topQ && !alOnly) { block.push([topQ[0], topQ[1] - 46, 40, 40]); hh += `<span class="hd lift" data-lift="1" title="Ciągnij w górę/dół - podnosi klocek nad stół (Bild↑/Bild↓)" style="left:${topQ[0].toFixed(0)}px;top:${(topQ[1] - 46).toFixed(0)}px">&#9650;</span>`; }
@@ -4933,8 +4948,8 @@ function freeDown(e) {
     return true;
   }
   const id = hit.id;
-  if (e.shiftKey || e.ctrlKey) { FR.sel = FR.sel.includes(id) ? FR.sel.filter(x => x !== id) : FR.sel.concat(id); FR.toggled = true; }
-  else { FR.toggled = false; if (!FR.sel.includes(id)) FR.sel = [id]; else FR.narrowTo = id; }
+  if (e.shiftKey || e.ctrlKey) { const grp = freeLinked([id]); FR.sel = FR.sel.includes(id) ? FR.sel.filter(x => !grp.includes(x)) : FR.sel.concat(grp.filter(x => !FR.sel.includes(x))); FR.toggled = true; }
+  else { FR.toggled = false; if (!FR.sel.includes(id)) FR.sel = freeLinked([id]); else FR.narrowTo = id; }
   const R = hit.R, hp = [R.o[0] + R.d[0] * hit.t, R.o[1] + R.d[1] * hit.t, R.o[2] + R.d[2] * hit.t];
   FR.drag = { kind: 'xy', z: hp[2], p0: hp, h0: null, start: FR.sel.map(i => { const o = freeObj(i); return { id: i, x: o.x, y: o.y }; }), moved: false, sx: e.clientX, sy: e.clientY };
   v3Build(false); renderFreePanel();
@@ -4999,8 +5014,14 @@ function mEul(M) {
   return [n(Math.atan2(-M[1][2], M[1][1]) * d), n(b * d), 0];
 }
 function freeRotStart(e, ax) {
-  const o = FR.sel.length === 1 && freeObj(FR.sel[0]); if (!o) return;
-  const s0 = freePlaced(o).size, c3 = [o.x, o.y, o.z + s0[2] / 2], C = freeProject(c3); if (!C) return;
+  const sel = FR.sel.map(id => freeObj(id)).filter(Boolean); if (!sel.length) return;
+  const o = sel[0];
+  // srodek obrotu: srodek calego zaznaczenia (jeden klocek = jego srodek)
+  let bmn = [1e9, 1e9, 1e9], bmx = [-1e9, -1e9, -1e9];
+  for (const q of sel) { const s = freePlaced(q).size, a = [q.x - s[0] / 2, q.y - s[1] / 2, q.z], b = [q.x + s[0] / 2, q.y + s[1] / 2, q.z + s[2]]; for (let i = 0; i < 3; i++) { bmn[i] = Math.min(bmn[i], a[i]); bmx[i] = Math.max(bmx[i], b[i]); } }
+  const c3 = [0, 1, 2].map(i => (bmn[i] + bmx[i]) / 2), C = freeProject(c3); if (!C) return;
+  const sol = sel.some(q => !q.hole) ? sel.filter(q => !q.hole) : sel;
+  const gBase = sel.map(q => ({ q, M0: eulM(q.rx || 0, q.ry || 0, q.rz || 0), p: [q.x - c3[0], q.y - c3[1], q.z + freePlaced(q).size[2] / 2 - c3[2]] })), gOnBed = Math.abs(Math.min(...sol.map(q => q.z))) < 1e-6;
   const cv = v3.r.domElement, rc = cv.getBoundingClientRect(), ang = (ev) => Math.atan2(ev.clientY - rc.top - C[1], ev.clientX - rc.left - C[0]);
   const R0 = freeRay(e), toCam = [R0.o[0] - c3[0], R0.o[1] - c3[1], R0.o[2] - c3[2]], ai = 'xyz'.indexOf(ax), sg = toCam[ai] >= 0 ? -1 : 1;
   const D = { o, ax, M0: eulM(o.rx || 0, o.ry || 0, o.rz || 0), a0: ang(e), acc: 0, last: ang(e), base: { x: o.x, y: o.y, z: o.z, rx: o.rx, ry: o.ry, rz: o.rz }, onBed: Math.abs(o.z) < 1e-6, c3, moved: false };
@@ -5024,8 +5045,17 @@ function freeRotStart(e, ax) {
     if (!D.moved) { freePush(); D.moved = true; }
     const t = deg * Math.PI / 180, c = Math.cos(t), sn = Math.sin(t);
     const Ra = ax === 'x' ? [[1, 0, 0], [0, c, -sn], [0, sn, c]] : ax === 'y' ? [[c, 0, sn], [0, 1, 0], [-sn, 0, c]] : [[c, -sn, 0], [sn, c, 0], [0, 0, 1]];
-    [o.rx, o.ry, o.rz] = mEul(mMul(Ra, D.M0));
-    const s1 = freePlaced(o).size; o.x = D.base.x; o.y = D.base.y; o.z = D.onBed ? 0 : +(D.c3[2] - s1[2] / 2).toFixed(3);
+    if (sel.length === 1) {
+      [o.rx, o.ry, o.rz] = mEul(mMul(Ra, D.M0));
+      const s1 = freePlaced(o).size; o.x = D.base.x; o.y = D.base.y; o.z = D.onBed ? 0 : +(D.c3[2] - s1[2] / 2).toFixed(3);
+    } else {
+      const ap = (M, v) => [0, 1, 2].map(i => M[i][0] * v[0] + M[i][1] * v[1] + M[i][2] * v[2]);
+      for (const g of gBase) {
+        const q = ap(Ra, g.p); [g.q.rx, g.q.ry, g.q.rz] = mEul(mMul(Ra, g.M0));
+        const s1 = freePlaced(g.q).size; g.q.x = +(c3[0] + q[0]).toFixed(3); g.q.y = +(c3[1] + q[1]).toFixed(3); g.q.z = +(c3[2] + q[2] - s1[2] / 2).toFixed(3);
+      }
+      if (gOnBed) { let z = 1e9; for (const q of sol) z = Math.min(z, q.z); for (const g of gBase) g.q.z = +(g.q.z - z).toFixed(3); }
+    }
     if (!FR.hraf) FR.hraf = requestAnimationFrame(() => { FR.hraf = 0; v3Build(false); freeSyncInputs(); });
   };
   const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); FR.rotating = false; ui.remove(); if (D.moved) { markDirty(); rebuild(false); renderFreePanel(); } else freeLabels(); };
@@ -5110,7 +5140,7 @@ function freeUp(e) {
   if (D && D.kind === 'ruler') { v3Build(false); renderFreePanel(); return true; }
   if (D) {
     if (D.moved) { markDirty(); rebuild(false); renderFreePanel(); }
-    else if (D.kind === 'xy' && FR.narrowTo && !FR.toggled) { FR.sel = [FR.narrowTo]; v3Build(false); renderFreePanel(); }
+    else if (D.kind === 'xy' && FR.narrowTo && !FR.toggled) { FR.sel = freeLinked([FR.narrowTo]); v3Build(false); renderFreePanel(); }
     FR.narrowTo = null;
     return true;
   }

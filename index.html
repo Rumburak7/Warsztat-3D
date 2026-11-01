@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.00</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.01</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -1816,6 +1816,7 @@ const TPLS = [
     { k: 'hang', label: 'Zawieszenie', def: 'key', opts: [['key', '2 dziurki od klucza (na wkręt w ścianie)'], ['none', 'bez']] },
     { k: 'esp', label: 'Kieszeń na ESP (z tyłu)', def: 'd1', opts: [['d1', 'Wemos D1 mini (ESP8266) 34 × 26 mm'], ['node', 'NodeMCU (ESP8266) 49 × 26 mm'], ['esp32', 'ESP32 DevKit 52 × 28 mm'], ['none', 'bez kieszeni']], hint: 'kieszeń z wieczkiem na tylnej płycie - zegar stoi trochę od ściany' },
     { k: 'pd', label: 'Kieszeń - głębokość', def: 12, min: 6, max: 25, step: 0.5, show: (v) => v.esp !== 'none', hint: 'płytka + przewody; tyle też zegar odstaje od ściany' },
+    { k: 'guide', label: 'Znaczniki pod taśmę LED', def: 'yes', opts: [['yes', 'tak - na tylnej płycie: początek/koniec każdego rzędu, strzałki, START'], ['no', 'nie']], hint: 'płytkie rowki 0,4 mm od strony kratki - taśmę kładziesz między znaczniki' },
     { k: 'usb', label: 'Gniazdo USB płytki', def: 'dol', show: (v) => v.esp !== 'none', opts: [['dol', 'w dół - płytka pionowo, kabel wychodzi na dole'], ['bok', 'w prawo - płytka poziomo, kabel wychodzi z boku']], hint: 'USB jest na krótszym boku płytki - tam musi być wycięcie na wtyczkę' },
     { k: 'cab', label: 'Wycięcie na wtyczkę USB (szerokość)', def: 12, min: 0, max: 20, step: 0.5, hint: 'wtyczka micro-USB / USB-C ma ok. 11 mm; bez kieszeni: otwór w płycie; 0 = bez' }
   ],
@@ -1925,6 +1926,31 @@ const TPLS = [
       cylZ(nc(), x, yk, 8, -pd - 3, v.bt + 1); G.box(nc(), x - 2, yk, -pd - 3, x + 2, yk + 7, v.bt + 1);
     }
     if (pd > 0) for (const x of [P * 1.5, W * 0.5 - 20]) G.box(add, x - 6, v.fw + 1, -pd - 1.6, x + 6, v.fw + 11, 0.6);   // nozki na dole (zegar rowno przy scianie)
+    // znaczniki pod tasme LED (rowki 0,4 mm na stronie od kratki; widok jak z przodu zegara)
+    if (v.guide !== 'no') {
+      const gb = canvasBits((g) => {
+        const t = 0.8, hw = 5.4, tk = 2.6;   // grubosc kreski, pol szerokosci tasmy (10 mm + luz), dlugosc zabka
+        for (let w = 0; w < NR; w++) {
+          const y = cy(w), xa = cx(0) - P / 2, xb = cx(NC - 1) + P / 2, rb = NR - 1 - w, wPrawo = rb % 2 === 1;   // rzad od dolu: parzysty = dane w lewo
+          g.fillRect(xa - t, y - hw - t, t, 2 * hw + 2 * t); g.fillRect(xa, y - hw - t, tk, t); g.fillRect(xa, y + hw, tk, t);            // [
+          g.fillRect(xb, y - hw - t, t, 2 * hw + 2 * t); g.fillRect(xb - tk, y - hw - t, tk, t); g.fillRect(xb - tk, y + hw, tk, t);      // ]
+          for (const q of [3, 7]) {   // strzalki kierunku danych
+            const x = (cx(q) + cx(q + 1)) / 2, d = wPrawo ? 1 : -1;
+            g.beginPath(); g.moveTo(x + 2.6 * d, y); g.lineTo(x - 2 * d, y - 2.6); g.lineTo(x - 2 * d, y + 2.6); g.closePath(); g.fill();
+            g.fillRect(Math.min(x - 2 * d, x - 6 * d), y - 0.5, 4, 1);
+          }
+        }
+        if (v.dots === 'yes') for (const [q, w] of corners) { g.beginPath(); g.arc(cx(q), cy(w), 3.6, 0, 7); g.arc(cx(q), cy(w), 2.8, 0, 7, true); g.fill(); }
+        // napisy (czytelne patrzac na plyte od strony kratki = jak z przodu zegara)
+        g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.textBaseline = 'middle';
+        const px = (mm) => mm / r, txt = (s, x, y, hmm, al) => { g.font = 'bold ' + px(hmm * 1.35).toFixed(0) + 'px Arial'; g.textAlign = al || 'center'; g.fillText(s, px(x), px(H - y)); };
+        txt('START', cx(NC - 1), cy(NR - 1) - 7.6, 2.6);
+        txt('1', cx(NC - 1) + P / 2 + 2.2, cy(NR - 1), 2.6, 'left');
+        if (v.dots === 'yes') { const nr = {}; nr[NC + ',-1'] = '111'; nr[NC + ',' + NR] = '112'; nr['-1,' + NR] = '113'; nr['-1,-1'] = '114'; for (const [q, w] of corners) txt(nr[q + ',' + w], cx(q), cy(w) + (w < 0 ? -5.6 : 5.6), 2.2); }
+        g.restore();
+      });
+      cutL.push(solid(gb, v.bt - 0.4, v.bt + 1));
+    }
     let BS = CSG.fromTris(plate);
     if (add.length) BS = CSG.union(BS, CSG.fromTris(add));
     for (const c of cutL) BS = CSG.subtract(BS, CSG.fromTris(c));

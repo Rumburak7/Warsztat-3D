@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.02</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.03</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -948,6 +948,7 @@ const SCREW_SELF = { M2: 1.8, M2_5: 2.2, M3: 2.7 };   // otwor pod wkret samogwi
    p: parametry (k, label, def, min, max, step, opts, hint, group). build(v) -> {parts, info, bom, warn}
    czesc: {name, file, tris (na stol), count, color, asm: [[dx,dy,dz,obrot], ...] (polozenie w widoku "Zlozone"), asmTris?} */
 const ICONS = {
+  spool2: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="17" cy="17" r="13"/><circle cx="17" cy="17" r="5"/></g><g fill="#e9c46a" opacity=".75"><path d="M17 6.5a10.5 10.5 0 0 1 9.1 5.25l-6.1 3.5A3.5 3.5 0 0 0 17 13.5z"/><path d="M26.1 22.25A10.5 10.5 0 0 1 17 27.5v-7a3.5 3.5 0 0 0 3-1.75z"/><path d="M7.9 22.25A10.5 10.5 0 0 1 7.9 11.75l6.1 3.5a3.5 3.5 0 0 0 0 3.5z"/></g></svg>',
   spoolring: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="17" cy="17" r="13"/><circle cx="17" cy="17" r="4.5"/></g><circle cx="17" cy="17" r="14.6" fill="none" stroke="#e9c46a" stroke-width="2.4" stroke-dasharray="86 6"/></svg>',
   free: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 22l7-3.5 7 3.5-7 3.5z M4 22v4l7 3.5 7-3.5v-4 M11 25.5v4"/><circle cx="25" cy="12" r="6"/></g><path d="M12 6h8v8h-8z" fill="#c98a3a"/></svg>',
   shield: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 9 17 5 29 9"/><path d="M5 15 17 11 29 15"/><path d="M5 21 17 17 29 21"/><path d="M5 27h24"/></g><path d="M8 9v18M26 9v18" stroke="#c98a3a" stroke-width="2"/></svg>',
@@ -1757,6 +1758,76 @@ const TPLS = [
       bom: [v.mount === 'nut' ? 'nakrętka M4 - wciśnij w sześciokątne gniazdo w podstawie' : v.mount === 'insert' ? 'wkładka gwintowana M4 (Ø5,6) - wciśnij lutownicą' : 'śruba M4 sama zrobi gwint', 'śruba M4 × ' + scr + ' od środka drzwiczek'] };
   } },
 
+/* ---------- 2a2a. szpula skladana (dwie polowki na bagnet) ---------- */
+{ id: 'spool2', name: 'Szpula składana', icon: 'spool2',
+  desc: 'Pusta szpula na filament z dwóch połówek, skręcanych w środku na bagnet - szerokość w środku dobierasz pod CFS. Do przewijania filamentu albo na filament „Refill”.',
+  p: [
+    { k: 'D', label: 'Średnica szpuli', group: 'Szpula', def: 200, min: 120, max: 250, step: 1, hint: 'zwykła szpula 1 kg: 195-200 mm' },
+    { k: 'Wi', label: 'Szerokość w środku (między brzegami)', def: 58, min: 30, max: 90, step: 0.5, hint: 'CFS: min. 57 mm' },
+    { k: 'hubD', label: 'Średnica piasty (na niej leży filament)', def: 80, min: 56, max: 140, step: 1, hint: 'filament „Refill” bez szpuli: zmierz otwór w kłębku' },
+    { k: 'tf', label: 'Grubość tarczy', def: 2.4, min: 1.6, max: 4, step: 0.2, hint: 'szerokość z zewnątrz = szerokość w środku + 2 × tarcza' },
+    { k: 'win', label: 'Okna w tarczy', group: 'Wygląd', def: '6', opts: [['6', '6 dużych okien (lżej, szybciej)'], ['3', '3 duże okna'], ['0', 'pełna tarcza']] },
+    { k: 'tw', label: 'Skręt bagnetu (°)', group: 'Bagnet', def: 45, min: 25, max: 90, step: 5, hint: 'o ile stopni przekręcasz połówki, żeby się zamknęły' },
+    { k: 'gap', label: 'Luz w bagnecie', def: 0.3, min: 0.1, max: 0.8, step: 0.05, hint: 'za ciasno → +0,1, za luźno → -0,1' }
+  ],
+  build(v) {
+    const warn = [], R = v.D / 2, Rh = v.hubD / 2, tf = v.tf, zm = tf + v.Wi / 2, g = v.gap;
+    const tB = 3.2, ts = 2.4, L = 12, lugH = 3.2, lugR = 1.4;           // scianka piasty B, tulejka A, zachodzenie, zaczep
+    const Rs = Rh - tB - g, Ri = Rs - ts, Rbore = Rh - tB;              // tulejka A: Ri..Rs; otwor B: Rbore
+    const N = 96;
+    if (Ri < 27.5) warn.push('Otwór w środku mniejszy niż 55 mm - nie wejdzie na uchwyt szpuli. Zwiększ średnicę piasty.');
+    if (2 * R > 260) warn.push('Szpula większa niż stół K2.');
+    // bryla obrotowa wycinkiem kata (a0..a1) z zamknietymi koncami; prof [[r,z],...] przeciwnie do wskazowek
+    const arcSweep = (prof, a0, a1, n) => {
+      const T = [], P = (q, a) => [q[0] * Math.cos(a), q[0] * Math.sin(a), q[1]];
+      for (let k = 0; k < n; k++) {
+        const a = a0 + (a1 - a0) * k / n, b = a0 + (a1 - a0) * (k + 1) / n;
+        for (let i = 0; i < prof.length; i++) { const p = prof[i], q = prof[(i + 1) % prof.length]; T.push(P(p, a), P(p, b), P(q, b), P(p, a), P(q, b), P(q, a)); }   // jak G.lathe (normalne na zewnatrz)
+      }
+      for (const [i, j, k] of polyTris(prof)) { T.push(P(prof[i], a0), P(prof[j], a0), P(prof[k], a0)); T.push(P(prof[i], a1), P(prof[k], a1), P(prof[j], a1)); }
+      return T;
+    };
+    const ccw = (prof) => { let A = 0; for (let i = 0; i < prof.length; i++) { const p = prof[i], q = prof[(i + 1) % prof.length]; A += p[0] * q[1] - q[0] * p[1]; } return A < 0 ? prof.slice().reverse() : prof; };
+    // okna w tarczy (wycinki pierscienia)
+    const windows = () => {
+      const n = +v.win, out = []; if (!n) return out;
+      const r1 = Rh + 5, r2 = R - 9, sp = 11;   // szprycha ~11 mm
+      for (let k = 0; k < n; k++) {
+        const c = (k + 0.5) * 2 * Math.PI / n, half = Math.PI / n - sp / 2 / r1;
+        out.push(arcSweep(ccw([[r1, -1], [r2, -1], [r2, tf + 1], [r1, tf + 1]]), c - half, c + half, 16));
+      }
+      return out;
+    };
+    // dziurki na koniec filamentu: przy brzegu i przy piascie
+    const fhole = (r, a) => { const T = []; G.tube(T, r * Math.cos(a), r * Math.sin(a), -1, tf + 2, 1.15, 0, 16); return T; };
+    const holes = () => { const out = []; for (const a of [0, Math.PI]) { out.push(fhole(R - 4, a + 0.12)); out.push(fhole(R - 4, a + 0.2)); out.push(fhole(Rh + 2.5, a + 0.35)); } return out; };
+    const one = (list) => { const T = []; for (const c of list) for (const q of c) T.push(q); return CSG.fromTris(T); };   // osobne (nienakladajace sie) bryly w jednej siatce - jedno CSG zamiast wielu (szybciej)
+    const lugA = 6 / Rs;                         // szerokosc zaczepu (kat)
+    const ent = [0, 1, 2].map(k => k * 2 * Math.PI / 3);
+    // --- polowka A: tarcza + piasta + tulejka z 3 zaczepami ---
+    const zl = zm + L - 3.5;                     // srodek zaczepu (A)
+    let A = CSG.fromTris(G.lathe([], ccw([[Ri, 0], [R, 0], [R, tf], [Rh, tf], [Rh, zm], [Rs, zm], [Rs, zm + L - 0.8], [Rs - 0.8, zm + L], [Ri, zm + L]]), N));
+    A = CSG.union(A, one(ent.map(a => arcSweep(ccw([[Rs - 0.3, zl - lugH / 2 - 1.6], [Rs + lugR, zl - lugH / 2], [Rs + lugR, zl + lugH / 2], [Rs - 0.3, zl + lugH / 2]]), a - lugA / 2, a + lugA / 2, 6))));
+    A = CSG.subtract(A, one(windows().concat(holes())));
+    // --- polowka B: tarcza + piasta z rowkami w ksztalcie L ---
+    const zb = zm - (L - 3.5);                   // srodek rowka (B)
+    let B = CSG.fromTris(G.lathe([], ccw([[Rbore, 0], [R, 0], [R, tf], [Rh, tf], [Rh, zm], [Rbore + 0.8, zm], [Rbore, zm - 0.8]]), N));
+    const gr0 = Rbore - 0.3, gr1 = Rbore + lugR + g + 0.2, gh = lugH / 2 + g + 0.3, gA = lugA + 2 * (g + 0.4) / Rbore, twR = v.tw * Math.PI / 180;
+    B = CSG.subtract(B, one(ent.map(a => arcSweep(ccw([[gr0, zb - gh - 1.7], [gr1, zb - gh], [gr1, zm + 1], [gr0, zm + 1]]), a - gA / 2, a + gA / 2, 6))));   // wejscia z gory
+    B = CSG.subtract(B, one(ent.map(a => arcSweep(ccw([[gr0, zb - gh - 1.7], [gr1, zb - gh], [gr1, zb + gh], [gr0, zb + gh]]), a - gA / 2, a + gA / 2 + twR, Math.max(8, Math.round(v.tw / 4))))));   // skret
+    // zatrzask: maly garb pod sufitem rowka tuz przed koncem - zaczep przeskakuje z kliknieciem
+    B = CSG.union(B, one(ent.map(a => { const ab = a + twR - gA / 2 - 0.02; return arcSweep(ccw([[gr0 + 0.4, zb + lugH / 2 - 0.15], [gr1, zb + lugH / 2 - 0.15], [gr1, zb + gh + 0.1], [gr0 + 0.4, zb + gh + 0.1]]), ab - 0.025, ab + 0.025, 2); })));
+    B = CSG.subtract(B, one(windows().concat(holes())));
+    const TA = CSG.toTris(A), TB = CSG.toTris(B);
+    const parts = [
+      { name: 'Połówka A (z zaczepami)', file: 'szpula_A_' + Math.round(v.Wi), tris: G.toBed(TA), asmTris: G.move(G.flipX(TA), 0, 0, 2 * zm), count: 1, color: COL[1], asm: [[0, 0, 0]] },
+      { name: 'Połówka B (z rowkami)', file: 'szpula_B_' + Math.round(v.Wi), tris: G.toBed(TB), asmTris: TB, count: 1, color: COL[0], asm: [[0, 0, 0]] }
+    ];
+    return { parts, warn,
+      info: [['Szpula', 'Ø' + f1(2 * R) + ' mm, w środku ' + f1(v.Wi) + ' mm, z zewnątrz ' + f1(v.Wi + 2 * tf) + ' mm'], ['Piasta / otwór', 'Ø' + f1(2 * Rh) + ' / Ø' + f1(2 * Ri) + ' mm']],
+      bom: ['obie połówki drukuj tarczą do stołu, bez podpór', 'złożenie: wsuń zaczepy A w wycięcia B i przekręć o ' + v.tw + '° aż kliknie', 'koniec filamentu wsuń w dziurkę przy piaście, przewijaj nitka obok nitki, na końcu zaczep w dziurce przy brzegu'] };
+  } },
+
 /* ---------- 2a2b. pierscien na brzeg szpuli (szpula za mala / zle chodzi w CFS) ---------- */
 { id: 'spoolring', name: 'Pierścień na szpulę', icon: 'spoolring',
   desc: 'Pierścień nasuwany na brzeg szpuli filamentu - powiększa średnicę i daje gładki brzeg do toczenia po rolkach (np. CFS). Drukuj 2 sztuki.',
@@ -1784,12 +1855,12 @@ const TPLS = [
       const a = ang(k), b = ang(k + 1);
       for (let i = 0; i < prof.length; i++) {
         const p = prof[i], q = prof[(i + 1) % prof.length];
-        T.push(P(p, a), P(q, a), P(q, b), P(p, a), P(q, b), P(p, b));
+        T.push(P(p, a), P(p, b), P(q, b), P(p, a), P(q, b), P(q, a));   // normalne na zewnatrz (jak G.lathe)
       }
     }
     if (v.slit === 'yes') {
       const tr = polyTris(prof);
-      for (const [i, j, k] of tr) { T.push(P(prof[i], a0), P(prof[k], a0), P(prof[j], a0)); T.push(P(prof[i], a1), P(prof[j], a1), P(prof[k], a1)); }
+      for (const [i, j, k] of tr) { T.push(P(prof[i], a0), P(prof[j], a0), P(prof[k], a0)); T.push(P(prof[i], a1), P(prof[k], a1), P(prof[j], a1)); }
     }
     return { parts: [{ name: 'Pierścień na szpulę', file: 'pierscien_szpula_' + Math.round(v.D) + '_' + Math.round(v.Dt), tris: G.toBed(T), asmTris: T, count: 2, color: COL[0], asm: [[0, 0, 0], [0, 0, 70]] }], warn,
       info: [['Pierścień', 'Ø' + f1(2 * Ro) + ' / wewn. Ø' + f1(2 * ri) + ' × ' + f1(H) + ' mm'], ['Szpula po założeniu', 'Ø' + f1(2 * Ro) + ', szersza o ' + f1(2 * v.s) + ' mm']],

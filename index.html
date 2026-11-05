@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.08</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.09</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3435,16 +3435,19 @@ function freeLocal(o) {
     // grupa: bryly z grupy minus otwory z grupy (wspolrzedne dzieci = jak w chwili laczenia)
     const items = o.items || [], hc = [];
     for (const c of items) if (c.hole) for (const t of freeWorldComps(c)) hc.push({ T: t, bb: G.bbox(t), p: null });
-    let shells = [];
-    for (const c of items) if (!c.hole) shells.push(...freeCutShells(freeWorldComps(c), hc));
+    // klocki grupy najpierw sklejamy w jedna bryle (bez podwojnych scianek w srodku - slicer robil przez nie szpary), potem otwory
+    const sol = [], jst = {};
+    for (const c of items) if (!c.hole) for (const t of freeWorldComps(c)) if (t.length) sol.push(t);
+    let shells = freeCutShells(sol.length > 1 ? freeJoin(sol, jst) : sol, hc);
     if (!items.some(c => !c.hole)) shells = hc.map(x => x.T);   // same otwory -> grupa otworow
+    var slowJoin = !!jst.slowJoin;
     const all = []; for (const t of shells) for (const p of t) all.push(p);
     const bb = G.bbox(all.length ? all : [[0, 0, 0]]), m = [-(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -(bb.mn[2] + bb.mx[2]) / 2];
     comps = shells.map(t => G.move(t, ...m)); T = []; for (const t of comps) for (const p of t) T.push(p);
     w = bb.size[0]; d = bb.size[1]; h = bb.size[2]; var absBB = bb;
   }
   if (fil > 0.05) T = flatTris(dropFlat(triplets(T)));
-  const res = { T, w, d, h, comps: comps || [T], abs: typeof absBB !== 'undefined' ? absBB : null };
+  const res = { T, w, d, h, comps: comps || [T], abs: typeof absBB !== 'undefined' ? absBB : null, slowJoin: typeof slowJoin !== 'undefined' && slowJoin };
   if (FREE_GEO.size > 300) FREE_GEO.clear();
   FREE_GEO.set(key, res);
   return res;
@@ -3492,6 +3495,38 @@ const bbHit = (a, b) => a.mn[0] < b.mx[0] && a.mx[0] > b.mn[0] && a.mn[1] < b.mx
 // bryly (lista zamknietych skorup) minus otwory [{T, bb, p}]
 // objetosc ze znakiem: ujemna = "pusta komora" w srodku bryly (scianki skierowane do srodka)
 function shellVol(C) { let v = 0; for (let i = 0; i + 2 < C.length; i += 3) { const a = C[i], b = C[i + 1], c = C[i + 2]; v += a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]); } return v / 6; }
+// Sklejanie bryl w jedna (CSG union). Bez tego w srodku scian zostaja podwojne / nachodzace na siebie powierzchnie
+// (np. klocek na klocku, "Polacz"), slicer sie na nich gubi: poziome szpary w scianach, "schwebende Regionen".
+// Laczymy tylko bryly, ktore sie stykaja (z zapasem 0,05 mm); osobno lezace zostaja bez CSG (szybciej).
+function freeJoin(L, stat) {
+  if (L.length < 2) return L.slice();
+  const bbs = L.map(T => G.bbox(T)), grp = L.map((_, i) => i);
+  const fnd = (i) => { while (grp[i] !== i) i = grp[i] = grp[grp[i]]; return i; };
+  const tch = (a, b) => !(a.mx[0] < b.mn[0] - 0.05 || b.mx[0] < a.mn[0] - 0.05 || a.mx[1] < b.mn[1] - 0.05 || b.mx[1] < a.mn[1] - 0.05 || a.mx[2] < b.mn[2] - 0.05 || b.mx[2] < a.mn[2] - 0.05);
+  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) if (tch(bbs[i], bbs[j])) grp[fnd(j)] = fnd(i);
+  const G2 = new Map(); L.forEach((T, i) => { const r = fnd(i); if (!G2.has(r)) G2.set(r, []); G2.get(r).push(T); });
+  const out = [];
+  for (const lst of G2.values()) {
+    if (lst.length < 2) { out.push(lst[0]); continue; }
+    const n = lst.reduce((s, T) => s + T.length, 0) / 3;
+    let R = null;
+    if (n <= 20000) {
+      try {
+        // najpierw najwieksze, kazda bryla dokladana do wyniku. Zaokraglone bryly (kule, walce) potrafia sie w CSG "rozmnozyc"
+        // - gdy wynik puchnie albo liczy sie za dlugo, przerywamy i zostaja bryly bez sklejania (jak dawniej)
+        const srt = lst.slice().sort((a, b) => b.length - a.length), t0 = performance.now();
+        let M = null;
+        for (const T of srt) {
+          const P = CSG.fromTris(T); M = M ? CSG.union(M, P) : P;
+          if (M.length > n * 6 || performance.now() - t0 > 4000) { M = null; if (stat) stat.slowJoin = true; break; }
+        }
+        if (M) { R = CSG.toTris(M); if (!R.length) R = null; }
+      } catch (e) { R = null; }
+    } else if (stat) stat.slowJoin = true;
+    if (R) { out.push(R); if (stat) stat.joined = (stat.joined || 0) + lst.length; } else for (const T of lst) out.push(T);
+  }
+  return out;
+}
 function freeCutShells(shells, hc, stat) {
   const out = [];
   // pusta komora wycinana osobno "odwraca sie" (z otworu robi sie bryla) - wtedy cala bryle wycinamy w jednym kawalku
@@ -3709,7 +3744,7 @@ function freeGroup() {
   freePush();
   cur.v.objs = freeObjs().filter(o => !FR.sel.includes(o.id)); cur.v.objs.push(g); FR.sel = [g.id];
   freeChanged(true);
-  toast('Połączono ' + items.length + ' klocki w „' + g.name + '”' + (items.some(c => c.hole) && !g.hole ? ' - otwory są już wycięte' : ''));
+  toast('Połączono ' + items.length + ' klocki w „' + g.name + '”' + (items.some(c => c.hole) && !g.hole ? ' - otwory są już wycięte' : '') + (L.slowJoin ? ' (część zaokrąglonych klocków za duża do sklejenia - zostały osobno)' : ''), L.slowJoin ? 5000 : undefined);
 }
 function freeUngroup() {
   const g = FR.sel.length === 1 && freeObj(FR.sel[0]);

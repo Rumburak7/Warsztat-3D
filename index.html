@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.09</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.10</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3438,7 +3438,7 @@ function freeLocal(o) {
     // klocki grupy najpierw sklejamy w jedna bryle (bez podwojnych scianek w srodku - slicer robil przez nie szpary), potem otwory
     const sol = [], jst = {};
     for (const c of items) if (!c.hole) for (const t of freeWorldComps(c)) if (t.length) sol.push(t);
-    let shells = freeCutShells(sol.length > 1 ? freeJoin(sol, jst) : sol, hc);
+    let shells = freeCutShells(o.join && sol.length > 1 ? freeJoin(sol, jst) : sol, hc);
     if (!items.some(c => !c.hole)) shells = hc.map(x => x.T);   // same otwory -> grupa otworow
     var slowJoin = !!jst.slowJoin;
     const all = []; for (const t of shells) for (const p of t) all.push(p);
@@ -3510,14 +3510,16 @@ function freeJoin(L, stat) {
     if (lst.length < 2) { out.push(lst[0]); continue; }
     const n = lst.reduce((s, T) => s + T.length, 0) / 3;
     let R = null;
-    if (n <= 20000) {
+    if (n <= 12000) {
       try {
         // najpierw najwieksze, kazda bryla dokladana do wyniku. Zaokraglone bryly (kule, walce) potrafia sie w CSG "rozmnozyc"
         // - gdy wynik puchnie albo liczy sie za dlugo, przerywamy i zostaja bryly bez sklejania (jak dawniej)
         const srt = lst.slice().sort((a, b) => b.length - a.length), t0 = performance.now();
         let M = null;
         for (const T of srt) {
-          const P = CSG.fromTris(T); M = M ? CSG.union(M, P) : P;
+          const P = CSG.fromTris(T);
+          if (M && M.length * P.length > 3e6) { M = null; if (stat) stat.slowJoin = true; break; }   // za duzo na jeden krok - przegladarka by sie zawiesila
+          M = M ? CSG.union(M, P) : P;
           if (M.length > n * 6 || performance.now() - t0 > 4000) { M = null; if (stat) stat.slowJoin = true; break; }
         }
         if (M) { R = CSG.toTris(M); if (!R.length) R = null; }
@@ -3589,7 +3591,7 @@ function freeClean(src, depth) {
       rad: n(o.rad, 3, 0, 500), cab: n(o.cab, 6, 1, 200), msz: [0, 2, 2.5, 3, 4, 5, 6].includes(o.msz) ? o.msz : 3, head: ['stoz', 'walc', 'brak'].includes(o.head) ? o.head : 'stoz',
       tm: n(o.tm, 10, 3, 60), pitch: n(o.pitch, 0, 0, 10), blen: n(o.blen, 25, 1, 400), bhead: ['hex', 'okr', 'brak'].includes(o.bhead) ? o.bhead : 'hex', clr: n(o.clr, 0.25, 0, 1), fil: n(o.fil, 0, 0, 500), kn: n(o.kn, 5, 3, 31), hclr: n(o.hclr, 0.4, 0.1, 1.5), barb: n(o.barb, 1, 0.3, 4), cell: n(o.cell, 5, 1.5, 60), web: n(o.web, 1.6, 0.6, 30), vpat: ['hex', 'slot', 'circle'].includes(o.vpat) ? o.vpat : 'hex', lt: LED_TYPES[o.lt] ? o.lt : '5', ln: n(o.ln, 5, 1, 200), lp: n(o.lp, 7, 1, 300), lrow: n(o.lrow, 1, 1, 50), lmode: o.lmode === 'fit' ? 'fit' : 'pitch', llen: n(o.llen, 50, 1, 2000), lclr: n(o.lclr, 0.2, 0, 1), lshape: ['row', 'ring', 'arc'].includes(o.lshape) ? o.lshape : 'row', lang: n(o.lang, 180, 10, 359),
       mx: !!o.mx, my: !!o.my, mz: !!o.mz, meshId: typeof o.meshId === 'string' ? o.meshId.slice(0, 24) : undefined, link: typeof o.link === 'string' ? o.link.slice(0, 24) : undefined });
-    if (o.type === 'group') { const last = v.objs[v.objs.length - 1]; last.items = freeClean({ objs: o.items || [] }, (depth || 0) + 1).objs; last.gx = n(o.gx, 0, -2000, 2000); last.gy = n(o.gy, 0, -2000, 2000); last.gz = n(o.gz, 0, -2000, 2000); if (!last.items.length) v.objs.pop(); }
+    if (o.type === 'group') { const last = v.objs[v.objs.length - 1]; last.items = freeClean({ objs: o.items || [] }, (depth || 0) + 1).objs; last.gx = n(o.gx, 0, -2000, 2000); last.gy = n(o.gy, 0, -2000, 2000); last.gz = n(o.gz, 0, -2000, 2000); if (o.join) last.join = 1; if (!last.items.length) v.objs.pop(); }
   }
   if (src && [0, 0.1, 0.5, 1, 2, 5, 10].includes(src.grid)) v.grid = src.grid;
   if (src && typeof src.segDef === 'number' && src.segDef >= 12 && src.segDef <= 128) v.segDef = src.segDef;
@@ -3733,7 +3735,7 @@ function freeGroup() {
   if (FR.sel.length < 2) { toast('Zaznacz co najmniej 2 klocki (Shift+klik), potem „Połącz”'); return; }
   const items = FR.sel.map(id => freeObj(id)).filter(Boolean).map(o => JSON.parse(JSON.stringify(o)));
   const g = { id: uid(), type: 'group', name: 'Grupa ' + (freeObjs().filter(x => x.type === 'group').length + 1), x: 0, y: 0, z: 0, w: 1, d: 1, h: 1, rx: 0, ry: 0, rz: 0,
-    hole: items.every(c => c.hole), color: (items.find(c => !c.hole) || items[0]).color, seg: 48, top: 0, wall: 2, text: '', th: 8, bold: 'bold', part: 0, lock: false, items };
+    hole: items.every(c => c.hole), join: 1, color: (items.find(c => !c.hole) || items[0]).color, seg: 48, top: 0, wall: 2, text: '', th: 8, bold: 'bold', part: 0, lock: false, items };
   let L;
   try { L = freeLocal(g); } catch (e) { toast('Nie udało się połączyć: ' + e.message, 4000); return; }
   if (!L.T.length || !L.abs) { toast('Po wycięciu otworów nic nie zostało - nie łączę'); return; }

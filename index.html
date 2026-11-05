@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.12</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.13</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -2388,7 +2388,7 @@ const TPLS = [
     const t = v.t, d = v.cd + 0.6, Lin = v.cl + v.spring, sl = v.slot, ins = sl > 0 ? sl + 1.2 : 0;
     const gap = v.gap || 0, mid = v.mid || 0, n = v.n;
     const nA = mid > 0 ? (n >= 2 ? Math.ceil(n / 2) : n) : n;           // ogniwa z przodu (reszta za srodkiem)
-    const pitch = d + t + gap, midW = mid > 0 ? mid + t : 0;             // srodek + dodatkowa przegroda
+    const pitch = d + t + gap, midW = mid > 0 ? mid + t : 0;             // srodek (wolne miejsce = dokladnie mid) + dodatkowa przegroda
     const cyOf = (i) => t + gap / 2 + i * pitch + d / 2 + (i >= nA ? midW : 0);
     const iX = Lin + 2 * ins, oX = iX + 2 * t, oY = n * pitch + t + midW, H = d * 0.62 + 2, f = 1.6, T = [];
     const lid = v.lid !== 'none', cellTop = f + v.cd + 0.6;
@@ -2406,14 +2406,15 @@ const TPLS = [
     // srodek: przegrody oddzielajace elektronike od ogniw
     let my0 = 0, my1 = 0;
     if (mid > 0) {
-      my0 = nA > 0 ? cyOf(nA - 1) + d / 2 + gap / 2 : t; my1 = my0 + midW;
-      if (nA > 0) G.box(T, t, my0, 0, oX - t, my0 + t, H * 0.75);
-      if (nA < n) G.box(T, t, my1 - t, 0, oX - t, my1, H * 0.75);
+      // my0..my0+t przegroda, potem wolne miejsce = mid, potem my1..my1+t przegroda (gdy sa ogniwa z tylu)
+      my0 = cyOf(nA - 1) + d / 2 + gap / 2; my1 = my0 + t + mid;
+      G.box(T, t, my0, 0, oX - t, my0 + t, H * 0.75);
+      if (nA < n) G.box(T, t, my1, 0, oX - t, my1 + t, H * 0.75);
     }
     G.wall(T, 'y', t, oY - t, 0, t, 0, Hb, ends);
     G.wall(T, 'y', t, oY - t, oX - t, oX, 0, Hb, ends);
     if (sl > 0) {   // druga scianka za szczelina - blaszka wsuwa sie od gory (tylko przy ogniwach, nie w srodku)
-      const segs = mid > 0 ? [[t, my0 + (nA > 0 ? t : 0)], [my1 - (nA < n ? t : 0), oY - t]].filter(s => s[1] - s[0] > 0.5 && (s[0] < my0 ? nA > 0 : nA < n)) : [[t, oY - t]];
+      const segs = mid > 0 ? (nA < n ? [[t, my0 + t], [my1, oY - t]] : [[t, my0 + t]]) : [[t, oY - t]];
       for (const [y0, y1] of segs) {
         G.wall(T, 'y', y0, y1, t + sl, t + sl + 1.2, 0, H, wins);
         G.wall(T, 'y', y0, y1, oX - t - sl - 1.2, oX - t - sl, 0, H, wins);

@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.19</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.20</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3166,6 +3166,156 @@ const TXT_FONTS = { arial: ['Arial (prosta)', 'Arial, Helvetica, Roboto, "Segoe 
   impact: ['Impact (wąska, gruba)', 'Impact, "Arial Narrow", sans-serif'], verdana: ['Verdana (szeroka)', 'Verdana, Geneva, sans-serif'], times: ['Times New Roman (szeryfowa)', '"Times New Roman", Times, serif'],
   georgia: ['Georgia (elegancka)', 'Georgia, serif'], courier: ['Courier New (maszynowa)', '"Courier New", Courier, monospace'], comic: ['Comic Sans (wesoła)', '"Comic Sans MS", "Comic Sans", cursive'],
   script: ['Segoe Script (pisana ręcznie)', '"Segoe Script", "Brush Script MT", cursive'], stencil: ['Stencil (szablon)', 'Stencil, "Arial Black", sans-serif'] };
+// ===== gladki napis: obrys liter (marching squares na wygladzonej czcionce) -> wielokaty -> bryla =====
+const TXTS_CACHE = {};
+function textOutline(str, hMM, bold, fontKey) {
+  str = String(str || '').trim(); if (!str || !(hMM > 0)) return null;
+  const key = str + '|' + hMM + '|' + bold + '|' + (fontKey || ''); if (TXTS_CACHE[key]) return TXTS_CACHE[key];
+  const fam = (TXT_FONTS[fontKey] || TXT_FONTS.arial)[1];
+  const capWant = clamp(hMM / 0.06, 60, 420), fs = Math.round(capWant / 0.72);
+  const font = (bold ? 'bold ' : '') + fs + 'px ' + fam;
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  g.font = font;
+  const capPx = (g.measureText('H').actualBoundingBoxAscent) || fs * 0.72;
+  const W = Math.ceil(g.measureText(str).width) + 40, Hh = Math.ceil(fs * 1.9);
+  if (W * Hh > 16e6) return null;
+  c.width = W; c.height = Hh; g.font = font; g.fillStyle = '#000'; g.textBaseline = 'alphabetic';
+  g.fillText(str, 20, Math.round(fs * 1.35));
+  const d = g.getImageData(0, 0, W, Hh).data, A = (x, y) => (x < 0 || y < 0 || x >= W || y >= Hh) ? 0 : d[(y * W + x) * 4 + 3] / 255;
+  const th = 0.5, mm = hMM / capPx;
+  // marching squares: punkty przeciecia na krawedziach (interpolacja z wygladzenia czcionki), odcinki "wnetrze po lewej"
+  const nxt = new Map(), pt = new Map();
+  const ek = (x, y, h) => (h ? 'h' : 'v') + x + ',' + y;
+  const P = (x, y, h) => { const k = ek(x, y, h); if (!pt.has(k)) { let px, py; if (h) { const a = A(x, y), b = A(x + 1, y); px = x + (th - a) / ((b - a) || 1e-9); py = y; } else { const a = A(x, y), b = A(x, y + 1); px = x; py = y + (th - a) / ((b - a) || 1e-9); } pt.set(k, [px, py]); } return k; };
+  for (let y = -1; y < Hh; y++) for (let x = -1; x < W; x++) {
+    const a = A(x, y) > th, b = A(x + 1, y) > th, cc = A(x + 1, y + 1) > th, e = A(x, y + 1) > th;
+    const code = (a ? 8 : 0) | (b ? 4 : 0) | (cc ? 2 : 0) | (e ? 1 : 0);
+    if (code === 0 || code === 15) continue;
+    const T = P(x, y, 1), Rr = P(x + 1, y, 0), B = P(x, y + 1, 1), L = P(x, y, 0);
+    const seg = (p, q) => nxt.set(p, q);
+    // kierunek: material po lewej (os y w dol w obrazku)
+    switch (code) {
+      case 1: seg(B, L); break; case 2: seg(Rr, B); break; case 3: seg(Rr, L); break; case 4: seg(T, Rr); break;
+      case 6: seg(T, B); break; case 7: seg(T, L); break; case 8: seg(L, T); break; case 9: seg(B, T); break;
+      case 11: seg(Rr, T); break; case 12: seg(L, Rr); break; case 13: seg(B, Rr); break; case 14: seg(L, B); break;
+      case 5: case 10: {
+        const mid = (A(x, y) + A(x + 1, y) + A(x + 1, y + 1) + A(x, y + 1)) / 4 > th;
+        if (code === 5) { if (mid) { seg(T, L); seg(B, Rr); } else { seg(T, Rr); seg(B, L); } }
+        else { if (mid) { seg(L, B); seg(Rr, T); } else { seg(L, T); seg(Rr, B); } }
+        break;
+      }
+    }
+  }
+  // laczenie w petle
+  const loops = [], used = new Set();
+  for (const k0 of nxt.keys()) {
+    if (used.has(k0)) continue;
+    const L = []; let k = k0, guard = 0;
+    while (k && !used.has(k) && guard++ < 1e6) { used.add(k); const q = pt.get(k); L.push([q[0] * mm, -q[1] * mm]); k = nxt.get(k); }
+    if (L.length >= 3) loops.push(L);
+  }
+  // uproszczenie (Douglas-Peucker na petli)
+  const dp = (Q, eps) => {
+    if (Q.length < 4) return Q;
+    const keep = new Uint8Array(Q.length); keep[0] = 1; keep[Q.length - 1] = 1;
+    const st = [[0, Q.length - 1]];
+    while (st.length) {
+      const [i0, i1] = st.pop(); const a = Q[i0], b = Q[i1], dx = b[0] - a[0], dy = b[1] - a[1], ll = Math.hypot(dx, dy) || 1e-12;
+      let mi = -1, md = 0;
+      for (let i = i0 + 1; i < i1; i++) { const dd = Math.abs((Q[i][0] - a[0]) * dy - (Q[i][1] - a[1]) * dx) / ll; if (dd > md) { md = dd; mi = i; } }
+      if (md > eps && mi > 0) { keep[mi] = 1; st.push([i0, mi], [mi, i1]); }
+    }
+    return Q.filter((_, i) => keep[i]);
+  };
+  const area = (Q) => { let s = 0; for (let i = 0; i < Q.length; i++) { const a = Q[i], b = Q[(i + 1) % Q.length]; s += a[0] * b[1] - b[0] * a[1]; } return s / 2; };
+  const eps = Math.max(0.01, mm * 0.15);
+  let polys = loops.map(Q => { const n = Q.length, h = Math.floor(n / 2); const a = dp(Q.slice(0, h + 1), eps), b = dp(Q.slice(h).concat([Q[0]]), eps); return a.slice(0, -1).concat(b.slice(0, -1)); })
+    .filter(Q => Q.length >= 3 && Math.abs(area(Q)) > mm * mm * 2);
+  if (!polys.length) return null;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const Q of polys) for (const q of Q) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+  polys = polys.map(Q => Q.map(q => [q[0] - x0, q[1] - y0]));
+  return TXTS_CACHE[key] = { polys, w: x1 - x0, h: y1 - y0 };
+}
+// punkt w wielokacie
+function ptInPoly(p, Q) { let c = false; for (let i = 0, j = Q.length - 1; i < Q.length; j = i++) { const a = Q[i], b = Q[j]; if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; }
+// triangulacja wielokata z otworami (otwory doklejone mostkami, potem obcinanie uszu) - zwraca trojkaty [[x,y],[x,y],[x,y]]
+function triHoles(outer, holes) {
+  const ar = (Q) => { let s = 0; for (let i = 0; i < Q.length; i++) { const a = Q[i], b = Q[(i + 1) % Q.length]; s += a[0] * b[1] - b[0] * a[1]; } return s; };
+  let P = ar(outer) < 0 ? outer.slice().reverse() : outer.slice();
+  const hs = holes.map(H => ar(H) > 0 ? H.slice().reverse() : H.slice()).sort((a, b) => Math.max(...b.map(q => q[0])) - Math.max(...a.map(q => q[0])));
+  for (const H of hs) {
+    let mi = 0; for (let i = 1; i < H.length; i++) if (H[i][0] > H[mi][0]) mi = i;
+    const M = H[mi];
+    // promien w prawo od M - najblizsza krawedz P
+    let best = -1, bx = 1e18;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i], b = P[(i + 1) % P.length];
+      if ((a[1] > M[1]) === (b[1] > M[1])) continue;
+      const x = a[0] + (M[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1]);
+      if (x >= M[0] - 1e-9 && x < bx) { bx = x; best = a[0] > b[0] ? i : (i + 1) % P.length; }
+    }
+    if (best < 0) continue;
+    // wybierz widoczny wierzcholek: najblizszy w trojkacie M-(bx)-P[best] o najmniejszym kacie (uproszczenie: ten sam)
+    let bi = best; const Pb = P[best];
+    let bestAng = 1e9;
+    for (let i = 0; i < P.length; i++) {
+      const q = P[i]; if (q[0] < M[0]) continue;
+      // w trojkacie M, (bx,My), Pb ?
+      const tri = [M, [bx, M[1]], Pb];
+      if (ptInPoly(q, tri) || i === best) { const ang = Math.abs(Math.atan2(q[1] - M[1], q[0] - M[0])), dd = Math.hypot(q[0] - M[0], q[1] - M[1]); const sc = ang * 1000 + dd; if (sc < bestAng) { bestAng = sc; bi = i; } }
+    }
+    const ring = H.slice(mi).concat(H.slice(0, mi));
+    P = P.slice(0, bi + 1).concat(ring, [ring[0]], P.slice(bi));
+  }
+  // obcinanie uszu (lista dwukierunkowa, test tylko z wierzcholkami wkleslymi)
+  const n = P.length, prev = new Int32Array(n), next = new Int32Array(n), out = [];
+  for (let i = 0; i < n; i++) { prev[i] = (i + n - 1) % n; next[i] = (i + 1) % n; }
+  const cr = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  let cnt = n, i = 0, stall = 0;
+  const inTri = (p, a, b, c) => cr(a, b, p) > 1e-12 && cr(b, c, p) > 1e-12 && cr(c, a, p) > 1e-12;
+  while (cnt > 3 && stall < cnt * 2 + 10) {
+    const ia = prev[i], ic = next[i], a = P[ia], b = P[i], c = P[ic];
+    let ear = cr(a, b, c) > 1e-12;
+    if (ear) {
+      for (let j = next[ic]; j !== ia; j = next[j]) {
+        const q = P[j];
+        if ((q[0] === a[0] && q[1] === a[1]) || (q[0] === b[0] && q[1] === b[1]) || (q[0] === c[0] && q[1] === c[1])) continue;
+        if (cr(P[prev[j]], q, P[next[j]]) > 1e-12) continue;   // wypukly - nie moze byc w uchu przy prostym wielokacie
+        if (inTri(q, a, b, c)) { ear = false; break; }
+      }
+    }
+    if (ear) { out.push([a, b, c]); next[ia] = ic; prev[ic] = ia; cnt--; stall = 0; i = ic; }
+    else { i = next[i]; stall++; }
+  }
+  if (cnt === 3) out.push([P[prev[i]], P[i], P[next[i]]]);
+  else if (cnt > 3) { const s0 = i; let j = next[s0]; while (next[j] !== s0) { out.push([P[s0], P[j], P[next[j]]]); j = next[j]; } }
+  return out;
+}
+// bryla napisu (srodek w 0, grubosc depth wzdluz Z) z obrysow
+function textSolidSmooth(O, depth) {
+  const T = [], z0 = -depth / 2, z1 = depth / 2, ox = -O.w / 2, oy = -O.h / 2;
+  const ar = (Q) => { let s = 0; for (let i = 0; i < Q.length; i++) { const a = Q[i], b = Q[(i + 1) % Q.length]; s += a[0] * b[1] - b[0] * a[1]; } return s; };
+  const polys = O.polys.map(Q => Q.map(q => [q[0] + ox, q[1] + oy]));
+  // zagniezdzenie: parzysta glebokosc = zewnetrzny, nieparzysta = otwor
+  const depthOf = polys.map((Q, i) => polys.reduce((s, R, j) => s + (j !== i && Math.abs(ar(R)) > Math.abs(ar(Q)) && ptInPoly(Q[0], R) ? 1 : 0), 0));
+  polys.forEach((Q, i) => {
+    if (depthOf[i] % 2) return;
+    const holes = polys.filter((H, j) => depthOf[j] === depthOf[i] + 1 && ptInPoly(H[0], Q));
+    for (const [a, b, c] of triHoles(Q, holes)) {
+      const s = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+      const [p, q, r] = s >= 0 ? [a, b, c] : [a, c, b];
+      T.push([p[0], p[1], z1], [q[0], q[1], z1], [r[0], r[1], z1]);
+      T.push([p[0], p[1], z0], [r[0], r[1], z0], [q[0], q[1], z0]);
+    }
+  });
+  // scianki: zewnetrzne CCW, otwory CW
+  polys.forEach((Q0, i) => {
+    const Q = ((ar(Q0) > 0) === (depthOf[i] % 2 === 0)) ? Q0 : Q0.slice().reverse();
+    for (let k = 0; k < Q.length; k++) { const a = Q[k], b = Q[(k + 1) % Q.length]; T.push([a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z0], [b[0], b[1], z1], [a[0], a[1], z1]); }
+  });
+  return T;
+}
 function textGrid(str, hMM, bold, fontKey) {
   str = String(str || '').trim(); if (!str || !(hMM > 0)) return null;
   const fam = (TXT_FONTS[fontKey] || TXT_FONTS.arial)[1];
@@ -3453,8 +3603,9 @@ function freeLocal(o) {
     const a = [-w / 2, -d / 2, -h / 2], b = [w / 2, -d / 2, -h / 2], c = [w / 2, d / 2, -h / 2], e = [-w / 2, d / 2, -h / 2], top = [0, 0, h / 2];
     T.push(a, c, b, a, e, c, a, b, top, b, c, top, c, e, top, e, a, top);
   } else if (o.type === 'text') {
-    const Gd = textGrid(o.text || 'Tekst', o.th || 8, o.bold !== 'normal', o.font);
-    if (Gd) { T = textSolid(Gd, h); w = Gd.w; d = Gd.h; }
+    let O = null; try { O = textOutline(o.text || 'Tekst', o.th || 8, o.bold !== 'normal', o.font); } catch (e) { O = null; }
+    if (O) { try { T = textSolidSmooth(O, h); w = O.w; d = O.h; } catch (e) { T = []; } }
+    if (!T.length) { const Gd = textGrid(o.text || 'Tekst', o.th || 8, o.bold !== 'normal', o.font); if (Gd) { T = textSolid(Gd, h); w = Gd.w; d = Gd.h; } }   // zapas: dawny napis z kwadracikow
   } else if (o.type === 'tpl') {
     const P = freeTplPart(o);
     if (P) { const bb = G.bbox(P.tris); T = G.move(P.tris, -(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -(bb.mn[2] + bb.mx[2]) / 2); w = bb.size[0]; d = bb.size[1]; h = bb.size[2]; comps = trisComponents(T); }

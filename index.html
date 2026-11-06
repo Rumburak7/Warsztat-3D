@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.17</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.18</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -1875,7 +1875,7 @@ const TPLS = [
     const toX = (T, dx) => T.map(p => [p[2] + dx, p[0], p[1]]);     // (u,v,w) -> (w,u,v): plyta stoi pionowo, grubosc w X
     const parts = [];
     let peg = v.peg || 0;
-    if (drive && peg > 0 && peg < hubR + 0.5 + 1.2 + 2.5 + 1.2) { peg = hubR + 0.5 + 1.2 + 2.5 + 1.2; warn.push('Kołek za blisko wałka - otwór przesunąłem na ' + f1(peg) + ' mm.'); }
+    if (drive && peg > 0 && peg < hubR + 0.5 + 2.5 + 0.8) { peg = hubR + 0.5 + 2.5 + 0.8; warn.push('Kołek za blisko wałka - otwór przesunąłem na ' + f1(peg) + ' mm.'); }
     // --- os drukowana: walec z plaskim spodem (lezy na stole), wzdluz X ---
     const axPoly = (r, cut) => { const P = [], N = 48; for (let k = 0; k < N; k++) { const a = -Math.PI / 2 + k / N * 2 * Math.PI; P.push([r * Math.cos(a), Math.max(r * Math.sin(a), cut)]); } return P.filter((q, i) => i === 0 || Math.abs(q[0] - P[i - 1][0]) > 1e-6 || Math.abs(q[1] - P[i - 1][1]) > 1e-6); };
     const flatCut = -ra + 0.6;
@@ -1898,9 +1898,17 @@ const TPLS = [
       // --- z silnikiem: silnik przykrecony opaskami do listwy A (+X), walek przez otwor listwy wchodzi w piaste rolki ---
       const ty1 = yd - v.sx + v.gl / 2, ty2 = yd - v.sx + v.gl + 12, tz = gw / 2 + 3;
       const hA = [{ cx: yd, cy: zc, r: hubR + 0.5 }, { cx: yi, cy: zc, r: press }, { cx: ty1, cy: zc + tz, r: 2.2 }, { cx: ty1, cy: zc - tz, r: 2.2 }];
-      if (ty2 + 3.4 < yi - press - 1.2 && ty2 - 3.4 > ty1 + 3.4) hA.push({ cx: ty2, cy: zc + tz, r: 2.2 }, { cx: ty2, cy: zc - tz, r: 2.2 });
+      if (ty2 + 2.2 < yi - press - 1 && ty2 - 2.2 > ty1 + 2.2) hA.push({ cx: ty2, cy: zc + tz, r: 2.2 }, { cx: ty2, cy: zc - tz, r: 2.2 });
       if (peg > 0) hA.push({ cx: yd + peg, cy: zc, r: 2.5 });
-      const barA = mkBar(hA), barB = mkBar([{ cx: yd, cy: zc, r: loose }, { cx: yi, cy: zc, r: press }]);
+      // listwa z silnikiem: otwory wycinane CSG (moga byc blisko siebie, np. kolek tuz przy walku)
+      let barA = null;
+      try {
+        const P = G.box([], yb0, 0, 0, Lb / 2, Hb, bt), Hs = [];
+        for (const h of hA) G.tube(Hs, h.cx, h.cy, -1, bt + 1, h.r, 0, h.r > 4 ? 64 : 32);
+        barA = CSG.toTris(CSG.subtract(CSG.fromTris(P), CSG.fromTris(Hs)));
+      } catch (e) { barA = null; }
+      if (!barA || !barA.length) barA = mkBar(hA.filter((h, i) => i < 2));
+      const barB = mkBar([{ cx: yd, cy: zc, r: loose }, { cx: yi, cy: zc, r: press }]);
       parts.push({ name: 'Listwa boczna z silnikiem', file: 'stojak_listwa_silnik', tris: G.toBed(barA), asmTris: toX(barA, 0), count: 1, color: COL[3], asm: [[xb, 0, 0]] });
       parts.push({ name: 'Listwa boczna', file: 'stojak_listwa', tris: G.toBed(barB), asmTris: toX(barB, 0), count: 1, color: COL[3], asm: [[-xb - bt, 0, 0]] });
       // rolki luzne (os bez silnika)

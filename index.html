@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.24</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.25</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -923,7 +923,7 @@ const G = {
     }
     return T;
   },
-  move(T, dx, dy, dz) { return T.map(p => [p[0] + dx, p[1] + dy, p[2] + dz]); },
+  move(T, dx, dy, dz) { const R = T.map(p => [p[0] + dx, p[1] + dy, p[2] + dz]); if (T._fix) R._fix = true; return R; },
   rotZ(T, ang, cx, cy) {
     cx = cx || 0; cy = cy || 0; const c = Math.cos(ang), s = Math.sin(ang);
     return T.map(p => [cx + (p[0] - cx) * c - (p[1] - cy) * s, cy + (p[0] - cx) * s + (p[1] - cy) * c, p[2]]);
@@ -4133,17 +4133,6 @@ function freeCutShells(shells, hc, stat) {
         if (!h.Tg) { const bb = G.bbox(h.T), c = [(bb.mn[0] + bb.mx[0]) / 2, (bb.mn[1] + bb.mx[1]) / 2, (bb.mn[2] + bb.mx[2]) / 2], sc = [0, 1, 2].map(k => 1 + 2e-4 / Math.max(0.05, (bb.mx[k] - bb.mn[k]) / 2)); h.Tg = h.T.map(p => [c[0] + (p[0] - c[0]) * sc[0], c[1] + (p[1] - c[1]) * sc[1], c[2] + (p[2] - c[2]) * sc[2]]); }
         const r = CSG.subtractLocal(T, h.Tg, 60000); if (!r.ok) { big = true; continue; }
         let R = r.T;
-        // kontrola: czy po wycieciu bryla jest zamknieta? jesli nie (zdarza sie przy zaokraglonych otworach na scianie/krawedzi),
-        // liczymy jeszcze raz pelnym CSG i bierzemy lepszy wynik
-        if (!FR.drag && R.length / 3 < 60000) {
-          try {
-            const o1 = meshOpenEdges(fixTJunctions(R));
-            if (o1 > 0 && (T.length + h.T.length) / 3 <= 40000 && meshOpenEdges(fixTJunctions(T)) === 0) {
-              const F = CSG.toTris(CSG.subtract(CSG.fromTris(T), CSG.fromTris(h.Tg)));
-              if (F.length && meshOpenEdges(fixTJunctions(F)) < o1) { R = F; if (stat) stat.recut = (stat.recut || 0) + 1; }
-            }
-          } catch (e) { /* zostaje wynik szybkiego wycinania */ }
-        }
         T = R; if (stat) stat.cut++;
       }
       if (big && stat) stat.big = (stat.big || 0) + 1;
@@ -4277,8 +4266,10 @@ function freeCompute() {
     const nb = order.map(c => [c, byColor.get(c)]); byColor.clear(); for (const [c, T] of nb) byColor.set(c, T);
   }
   // domkniecie siatek (T-zlacza po wycinaniu/sklejaniu) - inaczej Creality Print potrafi zgubic kawalki modelu
-  if (!FR.drag) for (const [c, T] of [...byColor]) { try { byColor.set(c, fixTJunctions(T)); } catch (e) { /* zostaje jak bylo */ } }
+  // (domykanie siatki robimy dopiero przy zapisie pliku - exportFix; w podgladzie zbedne, a przy duzych modelach spowalnialo przesuwanie)
+  for (const T of byColor.values()) T._fix = true;
   const all = []; for (const T of byColor.values()) for (const p of T) all.push(p);
+  all._fix = true;
   // na stol: wspolne przesuniecie dla wszystkich kolorow (pliki pasuja do siebie)
   const bb = G.bbox(all.length ? all : [[0, 0, 0]]), off = [-(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -bb.mn[2]];
   const parts = [];
@@ -6494,7 +6485,16 @@ function cutApply(parts) {
 }
 
 /* =====================  STL  ===================== */
+// domkniecie siatki przed zapisem (tylko modele z klockow - oznaczone _fix); wynik pamietany, zeby nie liczyc dwa razy
+const EXPORT_FIX = new WeakMap();
+function exportFix(T) {
+  if (!T || !T._fix) return T;
+  if (EXPORT_FIX.has(T)) return EXPORT_FIX.get(T);
+  let R = T; try { R = fixTJunctions(T); } catch (e) { R = T; }
+  EXPORT_FIX.set(T, R); return R;
+}
 function stlBlob(T, title) {
+  T = exportFix(T);
   const nt = T.length / 3, buf = new ArrayBuffer(84 + nt * 50), dv = new DataView(buf), head = 'Warsztat 3D - ' + title;
   for (let i = 0; i < 80; i++) dv.setUint8(i, i < head.length ? (head.charCodeAt(i) & 127) : 32);
   dv.setUint32(80, nt, true);
@@ -6591,8 +6591,8 @@ function mf3Plate(items, title) {
   for (const o of objs) out.push('<base name="' + xe(o.name) + '" displaycolor="' + xe(String(o.color || '#cccccc').slice(0, 7).toUpperCase()) + 'FF"/>');
   out.push('</basematerials>\n');
   objs.forEach((o, k) => {
-    const idx = new Map(), V = [], F = [];
-    for (let i = 0; i < o.tris.length; i++) { const p = o.tris[i], key = num(p[0]) + ' ' + num(p[1]) + ' ' + num(p[2]); let j = idx.get(key); if (j === undefined) { j = V.length; idx.set(key, j); V.push(key); } F.push(j); }
+    const idx = new Map(), V = [], F = [], OT = exportFix(o.tris);
+    for (let i = 0; i < OT.length; i++) { const p = OT[i], key = num(p[0]) + ' ' + num(p[1]) + ' ' + num(p[2]); let j = idx.get(key); if (j === undefined) { j = V.length; idx.set(key, j); V.push(key); } F.push(j); }
     out.push('<object id="' + (k + 2) + '" type="model" pid="1" pindex="' + k + '" name="' + xe(o.name) + '"><mesh><vertices>');
     for (const key of V) { const [x, y, z] = key.split(' '); out.push('<vertex x="' + x + '" y="' + y + '" z="' + z + '"/>'); }
     out.push('</vertices><triangles>');

@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.22</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.23</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3972,6 +3972,46 @@ function splitShells(T) {
   // kawalek bez zamknietej skorupy (np. otwarta scianka) - nie rozdzielamy, oddajemy calosc
   return sh.every(A => Math.abs(shellVol(A)) > 1e-6) ? sh : [T];
 }
+// Domykanie siatki po CSG: "T-zlacza" (wierzcholek jednego trojkata lezy na krawedzi sasiada) daja otwarte krawedzie -
+// Creality Print gubi wtedy kawalki modelu. Dzielimy taki trojkat w tych punktach, az kazda krawedz ma pare.
+function fixTJunctions(T) {
+  if (!T || T.length < 9 || T.length / 3 > 200000) return T;
+  const id = new Map(), V = [];
+  const vid = (p) => { const k = Math.round(p[0] * 1e6) + ',' + Math.round(p[1] * 1e6) + ',' + Math.round(p[2] * 1e6); let i = id.get(k); if (i === undefined) { i = V.length; id.set(k, i); V.push(p); } return i; };
+  let F = []; for (let i = 0; i + 2 < T.length; i += 3) { const a = vid(T[i]), b = vid(T[i + 1]), c = vid(T[i + 2]); if (a !== b && b !== c && a !== c) F.push([a, b, c]); }
+  for (let pass = 0; pass < 4; pass++) {
+    const E = new Map(), ek = (a, b) => a < b ? a * 8388608 + b : b * 8388608 + a;
+    F.forEach((f, t) => { for (let j = 0; j < 3; j++) { const k = ek(f[j], f[(j + 1) % 3]); const L = E.get(k); if (L) L.push(t); else E.set(k, [t]); } });
+    const bnd = []; const bv = new Set();
+    for (const [k, L] of E) if (L.length === 1) { const a = Math.floor(k / 8388608), b = k % 8388608; bnd.push([a, b, L[0]]); bv.add(a); bv.add(b); }
+    if (!bnd.length) break;
+    const cs = 1.0, grid = new Map(), gk = (x, y, z) => x + ',' + y + ',' + z;
+    for (const i of bv) { const p = V[i], k = gk(Math.floor(p[0] / cs), Math.floor(p[1] / cs), Math.floor(p[2] / cs)); const L = grid.get(k); if (L) L.push(i); else grid.set(k, [i]); }
+    const splitAt = new Map();   // trojkat -> [krawedz j, punkty]
+    for (const [a, b, t] of bnd) {
+      if (splitAt.has(t)) continue;
+      const A = V[a], B = V[b], d = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], L2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2]; if (L2 < 1e-12) continue;
+      const x0 = Math.floor(Math.min(A[0], B[0]) / cs), x1 = Math.floor(Math.max(A[0], B[0]) / cs), y0 = Math.floor(Math.min(A[1], B[1]) / cs), y1 = Math.floor(Math.max(A[1], B[1]) / cs), z0 = Math.floor(Math.min(A[2], B[2]) / cs), z1 = Math.floor(Math.max(A[2], B[2]) / cs);
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > 4000) continue;
+      const pts = [];
+      for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) { const L = grid.get(gk(x, y, z)); if (!L) continue;
+        for (const i of L) { if (i === a || i === b) continue; const P = V[i], w = [P[0] - A[0], P[1] - A[1], P[2] - A[2]], u = (w[0] * d[0] + w[1] * d[1] + w[2] * d[2]) / L2; if (u <= 1e-6 || u >= 1 - 1e-6) continue;
+          const q = [w[0] - u * d[0], w[1] - u * d[1], w[2] - u * d[2]]; if (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] < 1e-8) pts.push([u, i]); } }
+      if (!pts.length) continue;
+      const f = F[t]; let j = 0; for (; j < 3; j++) { const p = f[j], q = f[(j + 1) % 3]; if ((p === a && q === b) || (p === b && q === a)) break; }
+      if (j === 3) continue;
+      const p0 = f[j], p1 = f[(j + 1) % 3], opp = f[(j + 2) % 3];
+      pts.sort((m, n) => m[0] - n[0]); const seq = (p0 === a ? pts : pts.slice().reverse()).map(x => x[1]);
+      splitAt.set(t, [p0, seq, p1, opp]);
+    }
+    if (!splitAt.size) break;
+    const NF = [];
+    F.forEach((f, t) => { const s = splitAt.get(t); if (!s) { NF.push(f); return; } const [p0, seq, p1, opp] = s; const chain = [p0, ...seq, p1]; for (let i = 0; i + 1 < chain.length; i++) NF.push([chain[i], chain[i + 1], opp]); });
+    F = NF;
+  }
+  const out = []; for (const f of F) out.push(V[f[0]], V[f[1]], V[f[2]]);
+  return out;
+}
 function freeJoin(L, stat) {
   { const S = []; for (const T of L) { const P = T.length / 3 <= 30000 ? splitShells(T) : [T]; for (const q of P) S.push(q); } L = S; }
   if (L.length < 2) return L.slice();
@@ -4146,6 +4186,8 @@ function freeCompute() {
     // kolejnosc czesci: najwieksza pierwsza (w 3MF = filament 1), napisy i wstawki dalej (filament 2, 3...)
     const nb = order.map(c => [c, byColor.get(c)]); byColor.clear(); for (const [c, T] of nb) byColor.set(c, T);
   }
+  // domkniecie siatek (T-zlacza po wycinaniu/sklejaniu) - inaczej Creality Print potrafi zgubic kawalki modelu
+  if (!FR.drag) for (const [c, T] of [...byColor]) { try { byColor.set(c, fixTJunctions(T)); } catch (e) { /* zostaje jak bylo */ } }
   const all = []; for (const T of byColor.values()) for (const p of T) all.push(p);
   // na stol: wspolne przesuniecie dla wszystkich kolorow (pliki pasuja do siebie)
   const bb = G.bbox(all.length ? all : [[0, 0, 0]]), off = [-(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -bb.mn[2]];

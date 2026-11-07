@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.23</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.24</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3095,18 +3095,8 @@ const CSG = (() => {
   }
   // A - H dla duzych modeli: dotykamy tylko trojkatow A w poblizu otworu (reszta zostaje bez zmian, nic sie nie rozdrabnia),
   // a sciany otworu zostawiamy tam, gdzie leza w srodku A (test promieniem po calym A - dziala tez dla zlozonych / poklejonych modeli)
-  function subtractLocal(AT, HT, maxNear) {
-    const hb0 = [1e9, 1e9, 1e9], hb1 = [-1e9, -1e9, -1e9];
-    for (const p of HT) for (let k = 0; k < 3; k++) { if (p[k] < hb0[k]) hb0[k] = p[k]; if (p[k] > hb1[k]) hb1[k] = p[k]; }
-    const e = 1e-3, far = [], near = [];
-    for (let i = 0; i + 2 < AT.length; i += 3) {
-      const a = AT[i], b = AT[i + 1], c = AT[i + 2];
-      const out = Math.max(a[0], b[0], c[0]) < hb0[0] - e || Math.min(a[0], b[0], c[0]) > hb1[0] + e || Math.max(a[1], b[1], c[1]) < hb0[1] - e || Math.min(a[1], b[1], c[1]) > hb1[1] + e || Math.max(a[2], b[2], c[2]) < hb0[2] - e || Math.min(a[2], b[2], c[2]) > hb1[2] + e;
-      (out ? far : near).push(a, b, c);
-    }
-    if (!near.length) return { T: AT, ok: true };
-    if (maxNear && near.length / 3 > maxNear) return { T: AT, ok: false };
-    // siatka XY do testu "czy punkt jest w srodku A" (promien pionowo w gore, sciany w gore +1, w dol -1)
+  // test "czy punkt jest w srodku siatki" (promien pionowo w gore, sciany w gore +1, w dol -1; siatka XY przyspiesza)
+  function mkInside(AT) {
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     for (const p of AT) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
     const nT = AT.length / 3, NG = Math.max(1, Math.min(400, Math.round(Math.sqrt(nT / 4)))), cw = Math.max((x1 - x0) / NG, 1e-6), ch = Math.max((y1 - y0) / NG, 1e-6);
@@ -3117,7 +3107,7 @@ const CSG = (() => {
       const j0 = Math.floor((Math.min(a[1], b[1], c[1]) - y0) / ch), j1 = Math.floor((Math.max(a[1], b[1], c[1]) - y0) / ch);
       for (let ii = i0; ii <= i1; ii++) for (let jj = j0; jj <= j1; jj++) { const k = ii * 100003 + jj; let L = cells.get(k); if (!L) cells.set(k, L = []); L.push(i); }
     }
-    const inside = (q) => {
+    return (q) => {
       const px = q[0] + 1.37e-5, py = q[1] + 2.91e-5, pz = q[2];
       const L = cells.get(Math.floor((px - x0) / cw) * 100003 + Math.floor((py - y0) / ch)); if (!L) return false;
       let n = 0;
@@ -3130,9 +3120,23 @@ const CSG = (() => {
       }
       return n > 0;   // liczba nawiniec (nie parzystosc): zachodzace na siebie poklejone kawalki tez licza sie jako "w srodku"
     };
+  }
+  function subtractLocal(AT, HT, maxNear) {
+    const hb0 = [1e9, 1e9, 1e9], hb1 = [-1e9, -1e9, -1e9];
+    for (const p of HT) for (let k = 0; k < 3; k++) { if (p[k] < hb0[k]) hb0[k] = p[k]; if (p[k] > hb1[k]) hb1[k] = p[k]; }
+    const e = 1e-3, far = [], near = [];
+    for (let i = 0; i + 2 < AT.length; i += 3) {
+      const a = AT[i], b = AT[i + 1], c = AT[i + 2];
+      const out = Math.max(a[0], b[0], c[0]) < hb0[0] - e || Math.min(a[0], b[0], c[0]) > hb1[0] + e || Math.max(a[1], b[1], c[1]) < hb0[1] - e || Math.min(a[1], b[1], c[1]) > hb1[1] + e || Math.max(a[2], b[2], c[2]) < hb0[2] - e || Math.min(a[2], b[2], c[2]) > hb1[2] + e;
+      (out ? far : near).push(a, b, c);
+    }
+    if (!near.length) return { T: AT, ok: true };
+    if (maxNear && near.length / 3 > maxNear) return { T: AT, ok: false };
+    const inside = mkInside(AT), insideH = mkInside(HT);
     const H = fromTris(HT), hb = build(node(), H.map(P => poly(P.v.map(v => v.slice()), P.p)));
     // 1) trojkaty A przy otworze: wyrzucamy to, co lezy w srodku otworu
-    const nearC = clipPolys(hb, fromTris(near));
+    // kontrola: kawalek powierzchni A, ktory mimo to lezy w srodku otworu (blad zaokraglen przy duzych, szczegolowych otworach) - wyrzucamy
+    const nearC = clipPolys(hb, fromTris(near)).filter(P => { const c = [0, 0, 0]; for (const v of P.v) { c[0] += v[0]; c[1] += v[1]; c[2] += v[2]; } const m = P.v.length; return !insideH([c[0] / m - P.p.n[0] * 1e-4, c[1] / m - P.p.n[1] * 1e-4, c[2] / m - P.p.n[2] * 1e-4]); });
     // 2) sciany otworu: dzielimy je wzdluz powierzchni A i zostawiamy kawalki lezace w srodku A (odwrocone)
     const ab = build(node(), fromTris(near)), frag = [], st = [[ab, H]];
     while (st.length) {
@@ -3976,9 +3980,13 @@ function splitShells(T) {
 // Creality Print gubi wtedy kawalki modelu. Dzielimy taki trojkat w tych punktach, az kazda krawedz ma pare.
 function fixTJunctions(T) {
   if (!T || T.length < 9 || T.length / 3 > 200000) return T;
-  const id = new Map(), V = [];
-  const vid = (p) => { const k = Math.round(p[0] * 1e6) + ',' + Math.round(p[1] * 1e6) + ',' + Math.round(p[2] * 1e6); let i = id.get(k); if (i === undefined) { i = V.length; id.set(k, i); V.push(p); } return i; };
-  let F = []; for (let i = 0; i + 2 < T.length; i += 3) { const a = vid(T[i]), b = vid(T[i + 1]), c = vid(T[i + 2]); if (a !== b && b !== c && a !== c) F.push([a, b, c]); }
+  const V = [], vid = weldIndexer(V);
+  // igly: trojkaty o wysokosci < 0,00005 mm (prawie odcinki) - po CSG leza wzdluz krawedzi otworu i psuja szwy; wyrzucamy,
+  // a dziure po nich (punkt na krawedzi sasiada) domyka dzielenie ponizej
+  const thin = (a, b, c) => { const A = V[a], B = V[b], C = V[c]; const u = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], w = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+    const cx = u[1] * w[2] - u[2] * w[1], cy = u[2] * w[0] - u[0] * w[2], cz = u[0] * w[1] - u[1] * w[0], ar2 = Math.hypot(cx, cy, cz);
+    const L = Math.max(Math.hypot(...u), Math.hypot(...w), Math.hypot(C[0] - B[0], C[1] - B[1], C[2] - B[2])); return ar2 / (L || 1) < 5e-5; };
+  let F = []; for (let i = 0; i + 2 < T.length; i += 3) { const a = vid(T[i]), b = vid(T[i + 1]), c = vid(T[i + 2]); if (a !== b && b !== c && a !== c && !thin(a, b, c)) F.push([a, b, c]); }
   for (let pass = 0; pass < 4; pass++) {
     const E = new Map(), ek = (a, b) => a < b ? a * 8388608 + b : b * 8388608 + a;
     F.forEach((f, t) => { for (let j = 0; j < 3; j++) { const k = ek(f[j], f[(j + 1) % 3]); const L = E.get(k); if (L) L.push(t); else E.set(k, [t]); } });
@@ -4009,8 +4017,72 @@ function fixTJunctions(T) {
     F.forEach((f, t) => { const s = splitAt.get(t); if (!s) { NF.push(f); return; } const [p0, seq, p1, opp] = s; const chain = [p0, ...seq, p1]; for (let i = 0; i + 1 < chain.length; i++) NF.push([chain[i], chain[i + 1], opp]); });
     F = NF;
   }
+  // nadmiarowe "platki": trojkat, ktorego dwie krawedzie sa uzyte 3 razy, a trzecia ma tylko jego - zbedny kawalek po CSG
+  for (let it = 0; it < 3; it++) {
+    const C = new Map(), ek = (a, b) => a < b ? a * 8388608 + b : b * 8388608 + a;
+    for (const f of F) for (let j = 0; j < 3; j++) { const k = ek(f[j], f[(j + 1) % 3]); C.set(k, (C.get(k) || 0) + 1); }
+    const before = F.length;
+    F = F.filter(f => { const c = [0, 1, 2].map(j => C.get(ek(f[j], f[(j + 1) % 3]))); const odd = c.filter(x => x % 2).length, over = c.filter(x => x > 2).length; return !(odd === 3 && over >= 2); });
+    if (F.length === before) break;
+  }
+  // zostale male dziury (np. waski klin na plaskiej scianie po CSG) - zatykamy je plaskim kawalkiem
+  try { F = fillSmallHoles(F, V); } catch (e) { /* bez latania */ }
   const out = []; for (const f of F) out.push(V[f[0]], V[f[1]], V[f[2]]);
   return out;
+}
+function fillSmallHoles(F, V) {
+  const E = new Map(), ek = (a, b) => a * 8388608 + b;
+  for (const f of F) for (let j = 0; j < 3; j++) { const k = ek(f[j], f[(j + 1) % 3]); E.set(k, (E.get(k) || 0) + 1); }
+  const nxt = new Map();   // brzeg: istniejaca krawedz a->b bez pary b->a; nowa sciana potrzebuje b->a
+  for (const f of F) for (let j = 0; j < 3; j++) { const a = f[j], b = f[(j + 1) % 3]; if (!E.has(ek(b, a))) { if (!nxt.has(b)) nxt.set(b, []); nxt.get(b).push(a); } }
+  if (!nxt.size) return F;
+  const used = new Set(), add = [];
+  for (const s0 of nxt.keys()) {
+    if (used.has(s0)) continue;
+    const L = [s0]; let cur = s0, ok = false;
+    for (let g = 0; g < 400; g++) { const ns = nxt.get(cur); if (!ns || !ns.length) break; const n = ns.find(x => !used.has(x) || x === s0) ; if (n === undefined) break; if (n === s0) { ok = true; break; } if (L.includes(n)) break; L.push(n); cur = n; }
+    for (const i of L) used.add(i);
+    if (!ok || L.length < 3) continue;
+    // plaszczyzna (Newell) i rzut 2D
+    const P = L.map(i => V[i]); let nx = 0, ny = 0, nz = 0;
+    for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; nx += (p[1] - q[1]) * (p[2] + q[2]); ny += (p[2] - q[2]) * (p[0] + q[0]); nz += (p[0] - q[0]) * (p[1] + q[1]); }
+    const ax = Math.abs(nx) >= Math.abs(ny) && Math.abs(nx) >= Math.abs(nz) ? 0 : Math.abs(ny) >= Math.abs(nz) ? 1 : 2, u = (ax + 1) % 3, v = (ax + 2) % 3;
+    const sgn = [nx, ny, nz][ax] >= 0 ? 1 : -1, Q = P.map(p => [p[u], p[v] * sgn]);
+    // ucinanie uszu na indeksach petli (petla CCW w rzucie)
+    const idx = L.map((_, i) => i), cr = (a, b, c) => (Q[b][0] - Q[a][0]) * (Q[c][1] - Q[a][1]) - (Q[b][1] - Q[a][1]) * (Q[c][0] - Q[a][0]);
+    let guard = 0;
+    while (idx.length > 3 && guard++ < 5000) {
+      let cut = false;
+      for (let i = 0; i < idx.length; i++) {
+        const a = idx[(i + idx.length - 1) % idx.length], b = idx[i], c = idx[(i + 1) % idx.length];
+        if (cr(a, b, c) <= 1e-14) continue;
+        let inside = false; for (const d of idx) { if (d === a || d === b || d === c) continue; if (cr(a, b, d) > 0 && cr(b, c, d) > 0 && cr(c, a, d) > 0) { inside = true; break; } }
+        if (inside) continue;
+        add.push([L[a], L[b], L[c]]); idx.splice(i, 1); cut = true; break;
+      }
+      if (!cut) { const a = idx[0]; for (let i = 1; i + 1 < idx.length; i++) add.push([L[a], L[idx[i]], L[idx[i + 1]]]); idx.length = 0; }
+    }
+    if (idx.length === 3) add.push([L[idx[0]], L[idx[1]], L[idx[2]]]);
+  }
+  return add.length ? F.concat(add) : F;
+}
+// laczenie punktow lezacych blizej niz eps (CSG liczy z bledem zaokraglen - ten sam punkt wychodzi np. 4.9339996 i 4.9340003)
+function weldIndexer(V, eps) {
+  eps = eps || 1e-4; const cs = 2e-4, grid = new Map(), e2 = eps * eps;
+  return (p) => {
+    const cx = Math.floor(p[0] / cs), cy = Math.floor(p[1] / cs), cz = Math.floor(p[2] / cs);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+      const L = grid.get((cx + dx) + ',' + (cy + dy) + ',' + (cz + dz)); if (!L) continue;
+      for (const i of L) { const q = V[i], a = q[0] - p[0], b = q[1] - p[1], c = q[2] - p[2]; if (a * a + b * b + c * c <= e2) return i; }
+    }
+    const i = V.length; V.push(p); const k = cx + ',' + cy + ',' + cz; const L = grid.get(k); if (L) L.push(i); else grid.set(k, [i]); return i;
+  };
+}
+// ile krawedzi siatki nie ma pary (0 = bryla zamknieta)
+function meshOpenEdges(T) {
+  const V = [], vid = weldIndexer(V), E = new Map();
+  for (let i = 0; i + 2 < T.length; i += 3) { const ids = [vid(T[i]), vid(T[i + 1]), vid(T[i + 2])]; for (let k = 0; k < 3; k++) { const a = ids[k], b = ids[(k + 1) % 3]; if (a === b) continue; const e = a < b ? a * 8388608 + b : b * 8388608 + a; E.set(e, (E.get(e) || 0) + 1); } }
+  let n = 0; for (const c of E.values()) if (c % 2) n++; return n;
 }
 function freeJoin(L, stat) {
   { const S = []; for (const T of L) { const P = T.length / 3 <= 30000 ? splitShells(T) : [T]; for (const q of P) S.push(q); } L = S; }
@@ -4055,7 +4127,25 @@ function freeCutShells(shells, hc, stat) {
     if (C.length / 3 > 0) {
       // duzy model (np. wczytany STL albo poklejone kawalki): wycinamy tylko w poblizu otworu
       let T = C, big = false;
-      for (const h of hs) { const r = CSG.subtractLocal(T, h.T, 60000); if (!r.ok) { big = true; continue; } T = r.T; if (stat) stat.cut++; }
+      for (const h of hs) {
+        // otwor minimalnie powiekszony (0,0002 mm) - gdy sciana otworu lezy DOKLADNIE na scianie bryly (np. stopien otworu
+        // na wysokosci wierzchu), CSG zostawialo podwojne kawalki powierzchni; tak otwor po prostu przechodzi na wylot
+        if (!h.Tg) { const bb = G.bbox(h.T), c = [(bb.mn[0] + bb.mx[0]) / 2, (bb.mn[1] + bb.mx[1]) / 2, (bb.mn[2] + bb.mx[2]) / 2], sc = [0, 1, 2].map(k => 1 + 2e-4 / Math.max(0.05, (bb.mx[k] - bb.mn[k]) / 2)); h.Tg = h.T.map(p => [c[0] + (p[0] - c[0]) * sc[0], c[1] + (p[1] - c[1]) * sc[1], c[2] + (p[2] - c[2]) * sc[2]]); }
+        const r = CSG.subtractLocal(T, h.Tg, 60000); if (!r.ok) { big = true; continue; }
+        let R = r.T;
+        // kontrola: czy po wycieciu bryla jest zamknieta? jesli nie (zdarza sie przy zaokraglonych otworach na scianie/krawedzi),
+        // liczymy jeszcze raz pelnym CSG i bierzemy lepszy wynik
+        if (!FR.drag && R.length / 3 < 60000) {
+          try {
+            const o1 = meshOpenEdges(fixTJunctions(R));
+            if (o1 > 0 && (T.length + h.T.length) / 3 <= 40000 && meshOpenEdges(fixTJunctions(T)) === 0) {
+              const F = CSG.toTris(CSG.subtract(CSG.fromTris(T), CSG.fromTris(h.Tg)));
+              if (F.length && meshOpenEdges(fixTJunctions(F)) < o1) { R = F; if (stat) stat.recut = (stat.recut || 0) + 1; }
+            }
+          } catch (e) { /* zostaje wynik szybkiego wycinania */ }
+        }
+        T = R; if (stat) stat.cut++;
+      }
       if (big && stat) stat.big = (stat.big || 0) + 1;
       if (T.length) out.push(T); continue;
     }

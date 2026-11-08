@@ -697,7 +697,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.26</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.27</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -923,7 +923,7 @@ const G = {
     }
     return T;
   },
-  move(T, dx, dy, dz) { const R = T.map(p => [p[0] + dx, p[1] + dy, p[2] + dz]); if (T._fix) R._fix = true; return R; },
+  move(T, dx, dy, dz) { const R = T.map(p => [p[0] + dx, p[1] + dy, p[2] + dz]); if (T._fix) R._fix = true; if (T._sh) R._sh = T._sh; return R; },
   rotZ(T, ang, cx, cy) {
     cx = cx || 0; cy = cy || 0; const c = Math.cos(ang), s = Math.sin(ang);
     return T.map(p => [cx + (p[0] - cx) * c - (p[1] - cy) * s, cy + (p[0] - cx) * s + (p[1] - cy) * c, p[2]]);
@@ -4238,7 +4238,9 @@ function freeCompute() {
     const c = o.color || FREE_COLORS[0][0];
     if (!byColor.has(c)) byColor.set(c, []);
     tplCol.set(c, (tplCol.has(c) ? tplCol.get(c) : true) && o.type === 'tpl');
-    const arr = byColor.get(c); for (const p of out) arr.push(p);
+    const arr = byColor.get(c), s0 = arr.length; for (const p of out) arr.push(p);
+    // granice klockow w siatce koloru - przy zapisie domykamy kazdy klocek osobno (razem sklejaly sie zachodzace klocki i znikaly otwory)
+    if (out.length) (arr._sh || (arr._sh = [])).push([s0, arr.length]);
   }
   // kilka kolorow: gdzie bryly roznych kolorow na siebie zachodza (np. napis wlozony w pokrywe), wygrywa mniejsza bryla -
   // z wczesniejszego koloru wycinamy to miejsce; inaczej napis siedzi "w srodku" pokrywy, slicer go nie widzi i zglasza bledy siatki
@@ -4268,7 +4270,8 @@ function freeCompute() {
   // domkniecie siatek (T-zlacza po wycinaniu/sklejaniu) - inaczej Creality Print potrafi zgubic kawalki modelu
   // (domykanie siatki robimy dopiero przy zapisie pliku - exportFix; w podgladzie zbedne, a przy duzych modelach spowalnialo przesuwanie)
   for (const T of byColor.values()) T._fix = true;
-  const all = []; for (const T of byColor.values()) for (const p of T) all.push(p);
+  const all = []; all._sh = [];
+  for (const T of byColor.values()) { const s0 = all.length; for (const p of T) all.push(p); if (T._sh) for (const [x, y] of T._sh) all._sh.push([s0 + x, s0 + y]); else all._sh.push([s0, all.length]); }
   all._fix = true;
   // na stol: wspolne przesuniecie dla wszystkich kolorow (pliki pasuja do siebie)
   const bb = G.bbox(all.length ? all : [[0, 0, 0]]), off = [-(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -bb.mn[2]];
@@ -6490,7 +6493,11 @@ const EXPORT_FIX = new WeakMap();
 function exportFix(T) {
   if (!T || !T._fix) return T;
   if (EXPORT_FIX.has(T)) return EXPORT_FIX.get(T);
-  let R = T; try { R = fixTJunctions(T); } catch (e) { R = T; }
+  let R = T;
+  try {
+    if (T._sh && T._sh.length > 1) { R = []; let e0 = 0; for (const [a, b] of T._sh) { for (let i = e0; i < a; i++) R.push(T[i]); for (const p of fixTJunctions(T.slice(a, b))) R.push(p); e0 = b; } for (let i = e0; i < T.length; i++) R.push(T[i]); }
+    else R = fixTJunctions(T);
+  } catch (e) { R = T; }
   EXPORT_FIX.set(T, R); return R;
 }
 function stlBlob(T, title) {

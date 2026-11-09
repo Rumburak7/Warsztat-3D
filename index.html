@@ -716,7 +716,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.36</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.37</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3860,7 +3860,7 @@ function freeLocal(o) {
     w = n4 ? px + 2 * ro : 2 * ro; d = n4 ? py + 2 * ro : 2 * ro; h = H;
   } else if (o.type === 'hemi') {
     // pol kuli: plaski spod na stole, kopula do gory (w, d = srednica, h = wysokosc)
-    const Nh = Math.max(24, N), k = Math.max(6, Math.round(Nh / 4)), prof = [[0, 0], [1, 0]];
+    const Nh = Math.max(24, N), k = Math.max(12, Math.round(Nh / 2)), prof = [[0, 0], [1, 0]];   // gesto w pionie - gladka kopula takze gdy jest wysoka
     for (let i = 1; i < k; i++) { const a = i / k * Math.PI / 2; prof.push([Math.cos(a), Math.sin(a)]); }
     prof.push([0, 1]);
     const Q = []; lathe(Q, prof, Nh); T = Q.map(([x, y, z]) => [x * w / 2, y * d / 2, z * h - h / 2]);
@@ -4724,7 +4724,7 @@ function renderFreePanel() {
       h += freeNum('w', o.type === 'hook' ? 'Wysięg X' : o.type === 'angle' ? 'Długość X' : 'Szerokość X', val('w'), 0.5, freeFixed(o, 'w')) + freeNum('d', o.type === 'angle' ? 'Stopka Y' : o.type === 'clip' || o.type === 'hook' ? 'Szerokość Y' : 'Głębokość Y', val('d'), 0.5, freeFixed(o, 'd')) + freeNum('h', o.type === 'text' ? 'Grubość liter' : o.type === 'screw' ? 'Długość otworu' : o.type === 'nut' ? 'Głębokość gniazda' : o.type === 'led' ? 'Głębokość otworu Z' : 'Wysokość Z', val('h'), 0.5, freeFixed(o, 'h')); }
     if (!FREE_FIXED[o.type]) h += `<label class="pf chk"><input type="checkbox" data-k="lock"${o.lock ? ' checked' : ''}> zachowaj proporcje</label>`;
     if (o.type === 'tpl' || o.type === 'group') { const L0 = freeLocal(o); h += `<div class="pf full"><small>${o.type === 'tpl' ? 'Część z szablonu „' + esc(tplById(o.tpl).name) + '”' : 'Grupa z ' + o.items.length + ' klocków (otwory wycięte)'} - zmiana wymiaru <b>rozciąga</b> całość, razem z otworami. Prawdziwy rozmiar: ${f1(L0.w)} × ${f1(L0.d)} × ${f1(L0.h)} mm <button type="button" class="btn sm" data-act="unscale" style="height:22px;margin-left:4px">przywróć</button></small></div>`; }
-    if (['cyl', 'cone', 'tube', 'sphere'].includes(o.type)) h += freeNum('seg', 'Gładkość (boki)', o.seg, 1, false, 'ilość boków na obwodzie - więcej = gładziej');
+    if (['cyl', 'cone', 'tube', 'sphere', 'hemi'].includes(o.type)) h += freeNum('seg', 'Gładkość (boki)', o.seg, 1, false, 'ilość boków na obwodzie - więcej = gładziej');
     if (o.type === 'hex') h += freeNum('sides', 'Ilość boków', o.sides || 6, 1, false, '3 = trójkąt, 6 = sześciokąt, 8 = ośmiokąt ... do 64') + `<label class="pf"><span>Szerokość mierzona</span><select data-k="meas"><option value="corner"${o.meas !== 'flat' ? ' selected' : ''}>od rogu do rogu</option><option value="flat"${o.meas === 'flat' ? ' selected' : ''}>od boku do boku</option></select></label>`;
     if (o.type === 'cone') h += freeNum('top', 'Góra stożka (%)', o.top, 5, false, '0 = szpic, 100 = walec');
     if (o.type === 'tube') h += freeNum('wall', 'Ścianka rury', o.wall, 0.2);
@@ -4891,7 +4891,7 @@ function freeAct(b, e) {
   if (a === 'wp') { freeTool(a); return; } if (a === 'wpOff') { FR.wp = null; v3Build(false); renderFreePanel(); return; } if (a === 'rulerOff') { FR.ruler = null; v3Build(false); renderFreePanel(); toast('Linijka zabrana ze stołu'); return; } if (a.startsWith('mir')) { freeMirror(a.slice(3)); return; } if (a === 'unscale') { const o = freeObj(FR.sel[0]); if (o) { freePush(); const L0 = freeLocal(o); o.w = +L0.w.toFixed(3); o.d = +L0.d.toFixed(3); o.h = +L0.h.toFixed(3); freeChanged(true); } } else if (a === 'group') freeGroup(); else if (a === 'ungroup') freeUngroup(); else if (a === 'undo') freeUndo(false); else if (a === 'redo') freeUndo(true); else if (a === 'del') freeDelete(); else if (a === 'dup') freeDuplicate(); else if (a === 'bed') freeToBed();
 }
 /* ---------- gorny pasek: najwazniejsze przyciski ---------- */
-const CURVED = ['cyl', 'cone', 'tube', 'sphere'];
+const CURVED = ['cyl', 'cone', 'tube', 'sphere', 'hemi'];
 function freeSegNow() { const o = FR.sel.map(id => freeObj(id)).find(o => o && CURVED.includes(o.type)) || freeObjs().find(o => CURVED.includes(o.type)); return o ? o.seg : (cur.v.segDef || 48); }
 function renderFreeTop() {
   const box = $('#frTop'); if (!box) return;

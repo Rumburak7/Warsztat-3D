@@ -716,7 +716,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.33</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.34</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -3858,7 +3858,8 @@ function freeLocal(o) {
     w = n4 ? px + 2 * ro : 2 * ro; d = n4 ? py + 2 * ro : 2 * ro; h = H;
   } else if (o.type === 'sketch') {
     // szkic wyciagniety na wysokosc h; rogi zaokraglone promieniem sr
-    const P0 = Array.isArray(o.pts) && o.pts.length >= 3 ? o.pts : [[-10, -10], [10, -10], [10, 10], [-10, 10]], P = sketchRound(P0, o.sr || 0);
+    // szerokosc X / glebokosc Y = wymiar narysowanego ksztaltu; zmiana w panelu rozciaga szkic
+    const P0 = sketchScaled(o), P = sketchRound(P0, o.sr || 0);
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const [x, y] of P) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
     const Pc = P.map(([x, y]) => [x - (x0 + x1) / 2, y - (y0 + y1) / 2]);
     T = []; extrudePoly(T, Pc, -h / 2, h / 2); w = x1 - x0; d = y1 - y0;
@@ -4204,7 +4205,7 @@ function freeCutShells(shells, hc, stat) {
 }
 
 // wymiary liczone z parametrow (nie do ciagniecia myszka)
-const FREE_FIXED = { snap: ['w'], bolt: ['w', 'd', 'h'], tnut: ['w', 'd'], text: ['w', 'd'], screw: ['w', 'd'], nut: ['w', 'd'], clip: ['w', 'h'], led: ['w', 'd'], post: ['w', 'd'], sketch: ['w', 'd'] };
+const FREE_FIXED = { snap: ['w'], bolt: ['w', 'd', 'h'], tnut: ['w', 'd'], text: ['w', 'd'], screw: ['w', 'd'], nut: ['w', 'd'], clip: ['w', 'h'], led: ['w', 'd'], post: ['w', 'd'] };
 const freeFixed = (o, k) => !!(FREE_FIXED[o.type] && FREE_FIXED[o.type].includes(k));
 function freeFixSync(o) { const F = FREE_FIXED[o.type]; if (!F) return; const L = freeLocal(o); for (const k of F) o[k] = +L[k].toFixed(2); }
 // druga zebatka, ktora pasuje do zaznaczonej (ten sam modul, wlasciwa odleglosc osi, zab trafia w przerwe)
@@ -4706,7 +4707,7 @@ function renderFreePanel() {
     if (o.type === 'screw') h += `<label class="pf"><span>Śruba</span><select data-k="msz">${(false ? [[0, 'bez otworów']] : []).concat([2, 2.5, 3, 4, 5, 6].map(m => [m, 'M' + String(m).replace('.', ',')])).map(([v, t]) => `<option value="${v}"${+o.msz === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>` + `<label class="pf"><span>Łeb śruby</span><select data-k="head"><option value="stoz"${o.head === 'stoz' ? ' selected' : ''}>stożkowy (płasko)</option><option value="walc"${o.head === 'walc' ? ' selected' : ''}>walcowy (imbus)</option><option value="brak"${o.head === 'brak' ? ' selected' : ''}>bez łba</option></select></label><div class="pf full"><small>Łeb jest na <b>górze</b> otworu (1 mm wystaje - żeby ładnie wyciąć). Obróć 180° (X), żeby łeb był od spodu.</small></div>`;
     if (o.type === 'sketch') {
       h += `<div class="pf full"><button type="button" class="btn primary" data-act="sketchEdit">&#9999;&#65039; Edytuj szkic (${(o.pts || []).length} rogów)</button></div>`;
-      h += freeNum('sr', 'Zaokrąglenie rogów (mm)', o.sr || 0, 0.5) + `<div class="pf full"><small>Wysokość Z = jak wysoko wyciągnąć szkic. Kształt zmieniasz w „Edytuj szkic”. Jako „Otwór” szkic wytnie swój kształt w innym klocku.</small></div>`;
+      h += freeNum('sr', 'Zaokrąglenie rogów (mm)', o.sr || 0, 0.5) + `<div class="pf full"><small>Szerokość X i Y rozciągają cały szkic (np. +1 mm). Wysokość Z = jak wysoko wyciągnąć szkic. Kształt zmieniasz w „Edytuj szkic”. Jako „Otwór” szkic wytnie swój kształt w innym klocku.</small></div>`;
     }
     if (o.type === 'post') {
       const op = (k, v, t, cur) => `<option value="${v}"${cur === v ? ' selected' : ''}>${t}</option>`;
@@ -4808,7 +4809,7 @@ function freeInput(el) {
     if (o.type === 'gear' && (k === 'w' || k === 'd')) { o.w = o.d = v; freeSyncInputs(); clearTimeout(frInT); frInT = setTimeout(() => { markDirty(); rebuild(false); }, 120); return; }
     if (o.lock && ['w', 'd', 'h'].includes(k) && o[k] > 0) { const f = v / o[k]; for (const q of ['w', 'd', 'h']) if (q !== k) o[q] = +(o[q] * f).toFixed(3); freeSyncInputs(); }
     o[k] = v;
-    if ((o.type === 'post' && (k === 'pd' || k === 'px' || k === 'py' || k === 'msz')) || (o.type === 'sketch' && k === 'sr')) freeFixSync(o);
+    if (o.type === 'post' && (k === 'pd' || k === 'px' || k === 'py' || k === 'msz')) freeFixSync(o);
     if (k === 'fil') { o.fil = Math.min(v, +filMax(o).toFixed(2)); const box = el.closest('.frFil'); if (box) { box.querySelectorAll('input[data-k="fil"]').forEach(x => { if (x !== el) x.value = o.fil; }); const b = box.querySelector('[data-filv]'); if (b) b.textContent = f1(o.fil) + ' mm'; } }
   }
   freeFixSync(o);
@@ -5333,6 +5334,13 @@ function sketchRound(P, r) {
   }
   return out;
 }
+// punkty szkicu w aktualnej wielkosci klocka (po rozciagnieciu w panelu)
+function sketchScaled(o) {
+  const P = Array.isArray(o.pts) && o.pts.length >= 3 ? o.pts : [[-10, -10], [10, -10], [10, 10], [-10, 10]];
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const [x, y] of P) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const bw = x1 - x0, bh = y1 - y0, sx = bw > 1e-6 && o.w > 0 ? o.w / bw : 1, sy = bh > 1e-6 && o.d > 0 ? o.d / bh : 1, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  return P.map(([x, y]) => [(x - cx) * sx, (y - cy) * sy]);
+}
 // czy boki wielokata sie przecinaja (wtedy bryly nie da sie zrobic)
 function sketchSelfX(P) {
   const n = P.length, cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
@@ -5346,7 +5354,7 @@ function sketchSelfX(P) {
 }
 function freeSketchDialog(obj) {
   const f = $('#dlg');
-  let pts = obj && Array.isArray(obj.pts) ? obj.pts.map(p => [p[0], p[1]]) : [];
+  let pts = obj && Array.isArray(obj.pts) ? sketchScaled(obj).map(p => [+p[0].toFixed(3), +p[1].toFixed(3)]) : [];
   const hist = [], snap0 = (() => { try { return +localStorage.getItem('w3dSkSnap') || 1; } catch (e) { return 1; } })();
   let snap = [0.1, 0.5, 1, 2, 5, 10].includes(snap0) ? snap0 : 1, hover = -1, hoverE = -1, drag = -1, pan = null, mouse = null;
   const push = () => { hist.push(JSON.stringify(pts)); if (hist.length > 200) hist.shift(); };
@@ -5460,8 +5468,9 @@ function freeSketchDialog(obj) {
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const [x, y] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
     const P = pts.map(([x, y]) => [+(x - (x0 + x1) / 2).toFixed(3), +(y - (y0 + y1) / 2).toFixed(3)]);
     close();
-    if (obj) { freePush(); obj.pts = P; freeFixSync(obj); freeChanged(true); }
-    else freeAdd('sketch', { pts: P });
+    const W = +(x1 - x0).toFixed(3), D = +(y1 - y0).toFixed(3);
+    if (obj) { freePush(); obj.pts = P; obj.w = W; obj.d = D; freeChanged(true); }
+    else freeAdd('sketch', { pts: P, w: W, d: D });
   };
   draw(); setTimeout(() => cv.focus && cv.focus(), 30);
 }

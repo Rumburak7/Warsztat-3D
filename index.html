@@ -360,7 +360,8 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 .dlg.big{width:min(1200px,96vw);padding:26px 30px;gap:16px}
 .dlg.big h3{font-size:32px}
 .dlg.big .hint{font-size:17px;color:var(--ink2)}
-.skWrap{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;align-items:start}#skCv{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);cursor:crosshair;touch-action:none;display:block}
+.skWrap{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;align-items:start}
+#modal.skM{padding:8px}.dlg.big.skFull{width:calc(100vw - 16px);height:calc(100vh - 16px);max-height:none;padding:14px 20px;gap:8px;overflow:hidden}.dlg.skFull h3{font-size:24px;margin:0}.dlg.skFull .hint{font-size:14px}.dlg.skFull .skWrap{flex:1;min-height:0;align-items:stretch}.dlg.skFull .skCvBox{min-height:0;min-width:0;position:relative}.dlg.skFull #skCv{position:absolute;inset:0;width:100%;height:100%}.dlg.skFull .skSide{overflow:auto}#skCv{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);cursor:crosshair;touch-action:none;display:block}
 .skSide{display:flex;flex-direction:column;gap:12px;font-size:14px}.skBox{border:1px solid var(--line);border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:7px}.skRow{display:flex;gap:8px;flex-wrap:wrap}.skRow label{display:flex;align-items:center;gap:4px}.skRow input{width:72px}.skInfo{font-size:14px;line-height:1.5}.skBad{color:#d9452f;font-weight:600}
 .tdCols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
 .tdH{font:800 18px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin:4px 0 10px;padding-bottom:6px;border-bottom:3px solid var(--accent2)}
@@ -715,7 +716,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.32</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.33</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -5351,7 +5352,7 @@ function freeSketchDialog(obj) {
   const push = () => { hist.push(JSON.stringify(pts)); if (hist.length > 200) hist.shift(); };
   f.innerHTML = `<h3>&#9999;&#65039; Szkic${obj ? ': ' + esc(obj.name) : ''}</h3>
     <div class="hint">Klikaj na siatce - każdy klik to nowy róg kształtu (kształt sam się zamyka). Przeciągnij róg, żeby go przesunąć. Klik na bok = nowy róg w środku boku. Prawy klik na rogu = usuń. Kółko myszy = zoom, prawy przycisk + ruch = przesuwanie widoku.</div>
-    <div class="skWrap"><canvas id="skCv" width="900" height="560"></canvas>
+    <div class="skWrap"><div class="skCvBox"><canvas id="skCv" width="900" height="560"></canvas></div>
     <div class="skSide">
       <label class="pf"><span>Przyciąganie do siatki</span><select id="skSnap">${[0.1, 0.5, 1, 2, 5, 10].map(v => `<option value="${v}"${v === snap ? ' selected' : ''}>${String(v).replace('.', ',')} mm</option>`).join('')}</select></label>
       <div class="skBox"><b>Następny róg o:</b><div class="skRow"><label>X <input id="skDx" type="number" step="0.1" value="10"></label><label>Y <input id="skDy" type="number" step="0.1" value="0"></label></div><button type="button" class="btn sm" id="skAddRel">+ dodaj róg</button><small>od ostatniego rogu (pierwszy róg: od 0,0)</small></div>
@@ -5360,8 +5361,10 @@ function freeSketchDialog(obj) {
       <div id="skInfo" class="skInfo"></div>
     </div></div>
     <div class="acts"><button type="button" class="btn" id="skNo">Anuluj</button><button type="button" class="btn primary" id="skOk">&#10004; Gotowe</button></div>`;
-  f.classList.add('big'); $('#modal').hidden = false;
+  f.classList.add('big', 'skFull'); $('#modal').classList.add('skM'); $('#modal').hidden = false;
   const cv = $('#skCv'), cx = cv.getContext('2d');
+  // rysunek na caly ekran: rozdzielczosc platna = jego wielkosc na ekranie (srodek widoku zostaje w miejscu)
+  const fitCanvas = () => { const r = cv.parentElement.getBoundingClientRect(), W = Math.max(300, Math.round(r.width)), H = Math.max(200, Math.round(r.height)); if (W === cv.width && H === cv.height) return false; ox += (W - cv.width) / 2; oy += (H - cv.height) / 2; cv.width = W; cv.height = H; return true; };
   // widok: mm -> px
   let sc = 6, ox = cv.width / 2, oy = cv.height / 2;
   const fit = () => {
@@ -5370,7 +5373,8 @@ function freeSketchDialog(obj) {
     sc = clamp(Math.min((cv.width - 80) / Math.max(1, x1 - x0), (cv.height - 80) / Math.max(1, y1 - y0)), 0.5, 60);
     ox = cv.width / 2 - (x0 + x1) / 2 * sc; oy = cv.height / 2 + (y0 + y1) / 2 * sc;
   };
-  fit();
+  fitCanvas(); fit();
+  const onRs = () => { if (fitCanvas()) draw(); }; window.addEventListener('resize', onRs);
   const toPx = (p) => [ox + p[0] * sc, oy - p[1] * sc], toMm = (X, Y) => [(X - ox) / sc, (oy - Y) / sc];
   const sn = (v) => +(Math.round(v / snap) * snap).toFixed(3);
   const evPos = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
@@ -5446,7 +5450,7 @@ function freeSketchDialog(obj) {
   $('#skCirc').onclick = () => { const w = Math.max(0.5, num('#skW')), h = Math.max(0.5, num('#skH')), n = 48; push(); pts = []; for (let i = 0; i < n; i++) { const a = i / n * 2 * Math.PI; pts.push([+(w / 2 * Math.cos(a)).toFixed(3), +(h / 2 * Math.sin(a)).toFixed(3)]); } fit(); draw(); };
   $('#skUndo').onclick = () => { if (!hist.length) return; pts = JSON.parse(hist.pop()); draw(); };
   $('#skClear').onclick = () => { if (!pts.length) return; push(); pts = []; draw(); };
-  const close = () => { $('#modal').hidden = true; f.innerHTML = ''; f.onclick = null; f.onkeydown = null; f.classList.remove('big'); };
+  const close = () => { window.removeEventListener('resize', onRs); $('#modal').hidden = true; $('#modal').classList.remove('skM'); f.innerHTML = ''; f.onclick = null; f.onkeydown = null; f.classList.remove('big', 'skFull'); };
   f.onkeydown = (e) => { if (e.key === 'Escape') close(); else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && e.target.tagName !== 'INPUT') { e.preventDefault(); $('#skUndo').click(); } else if ((e.key === 'Delete' || e.key === 'Backspace') && hover >= 0 && e.target.tagName !== 'INPUT') { push(); pts.splice(hover, 1); hover = -1; draw(); } };
   $('#skNo').onclick = close;
   $('#skOk').onclick = () => {

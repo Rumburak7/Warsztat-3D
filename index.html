@@ -715,7 +715,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.31</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.32</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -4226,7 +4226,7 @@ function freeGearPair() {
 const FR = { sel: [], undo: [], redo: [], clip: null, cache: { key: '', parts: null, info: null, warn: null }, busy: false, timer: 0, meshes: [], handle: null, drag: null, hover: null, showRes: false };
 const freeObjs = () => (cur && cur.v && cur.v.objs) || [];
 const freeObj = (id) => freeObjs().find(o => o.id === id);
-const freeGrid = () => (cur && cur.v && cur.v.grid) || 1;
+const freeGrid = () => (cur && cur.v && typeof cur.v.grid === 'number') ? cur.v.grid : 1;   // 0 = wylaczona
 function freeClean(src, depth) {
   const v = { objs: [], grid: 1 };
   if ((depth || 0) > 6) return v;
@@ -4884,7 +4884,8 @@ let frSegPushed = false, frSegT = 0;
 function freeTopEvents() {
   const box = $('#frTop'); if (!box) return;
   box.addEventListener('click', e => { const b = e.target.closest('button'); if (b && !b.disabled) freeAct(b, e); });
-  box.addEventListener('change', e => { const g = e.target.closest('[data-grid]'); if (g) { cur.v.grid = +g.value; markDirty(); } if (e.target.matches('[data-seg]')) { frSegPushed = false; renderFreeTop(); renderFreePanel(); } });
+  box.addEventListener('change', e => { const g = e.target.closest('[data-grid]'); if (g) { cur.v.grid = +g.value; markDirty(); g.blur(); /* blur: strzalki maja potem przesuwac klocek, a nie zmieniac siatke */ } if (e.target.matches('[data-seg]')) { e.target.blur(); }
+  if (e.target.matches('[data-seg]')) { frSegPushed = false; renderFreeTop(); renderFreePanel(); } });
   box.addEventListener('input', e => {
     if (!e.target.matches('[data-seg]')) return;
     const v = +e.target.value; $('#frSegV').textContent = v;
@@ -4921,7 +4922,7 @@ function freePanelEvents() {
   });
   box.addEventListener('input', e => { const el = e.target.closest('[data-k]'); if (el) freeInput(el); });
   box.addEventListener('change', e => {
-    const g = e.target.closest('[data-grid]'); if (g) { cur.v.grid = +g.value; markDirty(); return; }
+    const g = e.target.closest('[data-grid]'); if (g) { cur.v.grid = +g.value; markDirty(); g.blur(); return; }
     const el = e.target.closest('[data-k]'); if (el) { freeInput(el); frEditPushed = false; clearTimeout(frInT); markDirty(); rebuild(false); renderFreePanel(); }
   });
   box.addEventListener('focusout', () => { frEditPushed = false; });
@@ -6151,7 +6152,7 @@ document.addEventListener('keydown', e => {
   if (!cur || cur.tpl !== 'free') return;
   const t = e.target; if (t && (t.matches('input,select,textarea') || t.isContentEditable) || !$('#modal').hidden) return;
   const lv = document.getElementById('libView'); if (lv && !lv.hidden) return;   // otwarty Magazyn - klawisze nie ruszaja klockow
-  const k = e.key, ctrl = e.ctrlKey || e.metaKey, g = freeGrid() || 1, step = e.shiftKey ? g * 10 : g;
+  const k = e.key, ctrl = e.ctrlKey || e.metaKey, g = freeGrid() || 0.1, step = e.shiftKey ? g * 10 : g;
   let done = true;
   if (k === 'Delete' || k === 'Backspace') freeDelete();
   else if (ctrl && (k === 'z' || k === 'Z') && !e.shiftKey) freeUndo(false);

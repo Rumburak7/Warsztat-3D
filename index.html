@@ -513,12 +513,27 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
     }
     const ms = Object.values((D && D.models) || {}).filter(m => m && m.id).sort((a, b) => String(a.id).localeCompare(b.id));
     for (const m of ms) {
+      // kazdy projekt ma swoj folder: w nim kopia projektu (w3d_<id>.json) i wczytane siatki
       const ids = [], walk = (A) => { for (const o of A || []) { if (o && o.type === 'mesh' && o.meshId) ids.push(o.meshId); if (o && o.items) walk(o.items); } };
-      walk(m.v && m.v.objs); if (!ids.length) continue;
+      walk(m.v && m.v.objs);
       const dir = uniq('Projekty', m.name);
+      M.set(projFile(m.id), dir);
       for (const id of ids) { const f = 'm_' + id + '.w3m'; if (!M.has(f)) M.set(f, dir); }
     }
     return M;
+  }
+  function projFile(id) { return 'w3d_' + String(id).replace(/[^A-Za-z0-9_-]/g, '') + '.json'; }
+  const isProj = (n) => /^w3d_[A-Za-z0-9_-]+\.json$/.test(n);
+  // kopie projektow w ich folderach - zapisujemy tylko te, ktore sie zmienily
+  const projTxt = new Map();
+  async function projWrite(D) {
+    for (const m of Object.values((D && D.models) || {})) {
+      if (!m || !m.id) continue;
+      const f = projFile(m.id), txt = JSON.stringify({ type: 'warsztat3d-projekt', autor: 'Adam Bryks', name: m.name, model: m }, null, 1);
+      if (projTxt.get(f) === txt) continue;
+      if (!projTxt.has(f)) { const old = await fsGetAt(where(f)); if (old && (await old.text()) === txt) { projTxt.set(f, txt); continue; } }
+      await fsPutAt(where(f), new Blob([txt], { type: 'application/json' })); projTxt.set(f, txt);
+    }
   }
   const where = (n) => (PLACE.get(n) || 'pliki') + '/' + n;
   // nazwa 'pliki/x' (tak mowi reszta programu) -> prawdziwa sciezka w folderze
@@ -549,6 +564,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
     if (!folder()) return;
     const have = await fsScan(); let moved = 0;
     for (const [n, path] of have) {
+      if (isProj(n) && !PLACE.has(n)) { await fsDelAt(path); projTxt.delete(n); continue; }   // projekt usuniety
       const w = where(n); if (path === w) continue;
       const f = await fsGetAt(path); if (!f) continue;
       await fsPutAt(w, f); await fsDelAt(path); moved++;
@@ -563,7 +579,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
   }
   function placesUpdate(blob) {
     // kolejka: najpierw nowa mapa folderow, potem porzadki (program w tym czasie dziala dalej)
-    tidyRun = tidyRun.then(async () => { PLACE = placesFrom(JSON.parse(await blob.text())); await tidy(); }).catch(() => {});
+    tidyRun = tidyRun.then(async () => { const D = JSON.parse(await blob.text()); PLACE = placesFrom(D); await tidy(); await projWrite(D); }).catch(() => {});
     return tidyRun;
   }
   L.tidy = () => tidyRun;
@@ -697,7 +713,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.28</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.29</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">

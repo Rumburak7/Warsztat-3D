@@ -716,7 +716,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.43</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.44</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -4837,7 +4837,7 @@ function renderFreePanel() {
     }
     if (o.type === 'bjball' || o.type === 'bjsock') h += `<div class="pf full"><small>Kulka Ø <b>${f1(o.bd || 12)}</b> mm, luz ${f1(o.bc == null ? 0.3 : o.bc)} mm. Wymiary są stałe, żeby kulka pasowała do gniazda - inny rozmiar: dodaj nowy „Przegub kulowy”.</small></div>`;
     if (o.type === 'rack') {
-      const m = o.rmod || 2, p = Math.PI * m, hR = Math.min(p / 2 - 0.05, (p / 2 - 0.25 * m) / 2 + 1.25 * m * Math.tan(15 * Math.PI / 180)), nT = Math.max(1, Math.floor((o.w - 2 * hR) / p) + 1), gz = freeObjs().find(x => x.type === 'gear');
+      const m = o.rmod || 2, p = Math.PI * m, hR = Math.min(p / 2 - 0.05, (p / 2 - 0.25 * m) / 2 + 1.25 * m * Math.tan(15 * Math.PI / 180)), nT = Math.max(1, Math.floor((o.w - 2 * hR) / p) + 1), gz = freeNearGear(o);
       h += freeNum('rmod', 'Moduł zęba (mm)', o.rmod || 2, 0.05, false, 'musi być taki sam jak moduł zębatki') + `<div class="pf"><span>&nbsp;</span><button type="button" class="btn sm primary" data-act="rackFit" title="Weź moduł z zębatki w projekcie">&#9881; Dopasuj do zębatki</button></div><div class="pf"><span>&nbsp;</span><button type="button" class="btn sm primary" data-act="rackPut" title="Ustawia zębatkę z projektu dokładnie na zębach listwy - ząb w przerwę, właściwa odległość">&#9881; Postaw zębatkę na listwie</button></div>`;
       h += `<div class="pf full"><small><b>${nT}</b> zębów co <b>${f1(p)}</b> mm, wysokość zęba ${f1(2.25 * m)} mm. Zęby są na górnej krawędzi (strona +Y), głębokość Y = cała wysokość listwy razem z zębami. Listwa zazębia się z zębatką o <b>tym samym module</b> - zębatka toczy się po niej. Oś zębatki ustaw <b>promień zębatki − 2 × moduł</b> nad czubkami zębów listwy${gz ? ` - dla „${esc(gz.name)}”: <b>${f1(gz.w / 2 - 2 * m)} mm</b>` : ''}.</small></div>`;
     }
@@ -4924,10 +4924,17 @@ function freeAddKey(a, pos) {
   if (a === 'ventS' || a === 'ventC') { const o = freeAdd('vent', Object.assign({ hole: true, vpat: a === 'ventS' ? 'slot' : 'circle' }, pos || {})); o.name = (a === 'ventS' ? 'Kratka szczeliny ' : 'Kratka kółka ') + freeObjs().filter(x => x.type === 'vent').length; renderFreePanel(); return o; }
   return freeAdd(a, pos);
 }
+// v5.44: zebatka najblizej listwy (gdy w projekcie jest kilka zebatek)
+function freeNearGear(r) {
+  const gs = freeObjs().filter(x => x.type === 'gear'); if (!gs.length) return null;
+  const c = freePlaced(r).map([0, 0, 0]); let best = gs[0], bd = 1e18;
+  for (const g of gs) { const q = freePlaced(g).map([0, 0, 0]), d = (q[0] - c[0]) ** 2 + (q[1] - c[1]) ** 2 + (q[2] - c[2]) ** 2; if (d < bd) { bd = d; best = g; } }
+  return best;
+}
 // v5.43: zebatka z projektu ustawiona na listwie: zab zebatki w przerwe listwy (najblizej srodka), os = czubki zebow + (promien - 2·modul)
 function freeRackPut() {
   const r = FR.sel.length === 1 && freeObj(FR.sel[0]); if (!r || r.type !== 'rack') { toast('Zaznacz listwę zębatą'); return; }
-  const g = freeObjs().find(x => x.type === 'gear'); if (!g) { toast('W projekcie nie ma zębatki'); return; }
+  const g = freeNearGear(r); if (!g) { toast('W projekcie nie ma zębatki'); return; }
   if (r.rx || r.ry || g.rx || g.ry) { toast('Listwa i zębatka muszą leżeć płasko (obrót tylko wokół Z)', 4000); return; }
   const n = clamp(Math.round(g.teeth || 20), 6, 200), m = g.w / (n + 2);
   freePush();
@@ -5027,7 +5034,7 @@ function freeDropAt(a, ev) {
 function freeAct(b, e) {
   if (b.dataset.act === 'gearPair') { freeGearPair(); return; }
   if (b.dataset.act === 'rackPut') { freeRackPut(); return; }
-  if (b.dataset.act === 'rackFit') { const r = FR.sel.length === 1 && freeObj(FR.sel[0]), g = freeObjs().find(x => x.type === 'gear'); if (!r || r.type !== 'rack') { toast('Zaznacz listwę zębatą'); return; } if (!g) { toast('W projekcie nie ma zębatki'); return; } freePush(); r.rmod = +(g.w / ((g.teeth || 20) + 2)).toFixed(3); freeChanged(true); toast('Moduł z zębatki: ' + f1(r.rmod) + ' mm'); return; }
+  if (b.dataset.act === 'rackFit') { const r = FR.sel.length === 1 && freeObj(FR.sel[0]), g = r && r.type === 'rack' ? freeNearGear(r) : null; if (!r || r.type !== 'rack') { toast('Zaznacz listwę zębatą'); return; } if (!g) { toast('W projekcie nie ma zębatki'); return; } freePush(); r.rmod = +(g.w / ((g.teeth || 20) + 2)).toFixed(3); freeChanged(true); toast('Moduł z zębatki „' + g.name + '”: ' + f1(r.rmod) + ' mm - teraz „Postaw zębatkę na listwie”', 4000); return; }
   if (b.dataset.act === 'copy') { freeCopy(); return; }
   if (b.dataset.act === 'cruise') { const on = !freeCruiseOn(); try { localStorage.setItem('w3dCruise', on ? '1' : '0'); } catch (e) {} toast(on ? 'Przyklejanie włączone - ciągnij klocek na ściankę innego klocka' : 'Przyklejanie wyłączone - klocki przesuwasz tylko po stole'); renderFreePanel(); return; }
   if (b.dataset.act === 'paste') { freePaste(); return; }

@@ -716,7 +716,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.45</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.47</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -987,6 +987,7 @@ const ICONS = {
   spacer: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="17" cy="9" rx="8" ry="3.5"/><path d="M9 9v15c0 2 3.6 3.5 8 3.5s8-1.5 8-3.5V9"/></g><ellipse cx="17" cy="9" rx="3" ry="1.3" fill="#c98a3a"/></svg>',
   drone: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 9l16 16M25 9 9 25"/><circle cx="8" cy="8" r="5"/><circle cx="26" cy="8" r="5"/><circle cx="8" cy="26" r="5"/><circle cx="26" cy="26" r="5"/></g><rect x="13" y="13" width="8" height="8" rx="1.5" fill="#c98a3a"/></svg>',
   aqua: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8v20h26V8"/><path d="M4 13c4-2 7 2 11 0s7-2 11 0 3 1 4 0"/></g><path d="M12 21c2-3 6-3 8 0-2 3-6 3-8 0z M20 21l3-2v4z" fill="currentColor"/><path d="M8 28v-6M26 28v-4" stroke="currentColor" stroke-width="1.6"/></svg>',
+  vase: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 4h10M13 4c0 4-6 7-6 15 0 6 4 11 10 11s10-5 10-11c0-8-6-11-6-15"/></g><path d="M9 16c3 2 5-2 8 0s5 2 8 0M8.5 22c3 2 5-2 8.5 0s5 2 8.5 0" fill="none" stroke="#c98a3a" stroke-width="1.6"/></svg>',
   knob: '<svg viewBox="0 0 34 34"><circle cx="17" cy="17" r="12" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="17" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/><path d="M17 17V7" stroke="#c98a3a" stroke-width="2.5" stroke-linecap="round"/></svg>'
 };
 // Moduly wyswietlaczy - wymiary PRZYBLIZONE (rozne wersje modulow sie roznia) - sprawdz suwmiarka i popraw.
@@ -1089,6 +1090,196 @@ function labelBuild(v, cx, cy, flipY) {
   const inner = flipY ? [x0, flipY - (y0 + R.h), x0 + R.w, flipY - y0] : [x0, y0, x0 + R.w, y0 + R.h];
   return { zone, zp, frame: rectMinus(zp, inner), ink: R.ink.map(map), gap: R.gap.map(map), w: R.w, h: R.h };
 }
+/* ---------- wazon / pudelko ze wzorem (v5.47) ---------- */
+// siatka parametryczna (kat x wysokosc): sciana zewn. + wewn., az ur (durchbrochen) przez "marching squares" na polu F (F>=0 = material),
+// kontury lisci jako wypukle paski na sciance, opcjonalna pokrywka (drukowana gora na stole)
+function vaseBuild(v) {
+  const TAU = Math.PI * 2, H = v.H, wall = v.wall, tw = (v.twist || 0) * Math.PI / 180;
+  const rB = v.Db / 2, rM = v.Dm / 2, rT = v.Dt / 2, bp = Math.min(0.9, Math.max(0.1, v.bpos / 100));
+  const sm = (x) => x * x * (3 - 2 * x);
+  const R0 = (t) => t <= bp ? rB + (rM - rB) * sm(t / bp) : rM + (rT - rM) * sm((t - bp) / (1 - bp));
+  const nS = v.shape === 'poly' ? Math.max(3, Math.round(v.sides || 6)) : 0;
+  const shapeK = (f) => { if (!nS) return 1; const s = TAU / nS; let a = f % s; if (a < 0) a += s; return Math.cos(Math.PI / nS) / Math.cos(a - s / 2); };
+  const wn = Math.round(v.wn || 0), wa = (v.wa || 0) / 2;
+  const rOut = (th, t) => { const f = th - tw * t; return R0(t) * shapeK(f) + (wn ? wa * Math.cos(wn * f) : 0); };
+  const warn = [];
+  // ---- pole wzoru (F >= 0: material) ----
+  const perf = v.perf || 'none', cell = v.cell || 12, web = v.web || 2.5;
+  const Rmean = (rB + rM + rT) / 3, nc = Math.max(3, Math.round(TAU * Rmean / cell));
+  const bot = Math.max(0.8, v.bot || 2), rim = Math.max(2, v.rim || 6);
+  // liscie: uklad (wspolny dla okienek i konturow) - w katach bez skretu
+  const L = v.lsize || 40, LW = L * 0.42, nl = Math.max(1, Math.round(v.lcount || 6)), nr = Math.max(1, Math.round(v.lrows || 1));
+  const halfW = (s) => s <= 0 || s >= 1 ? 0 : LW / 2 * Math.pow(Math.sin(Math.PI * Math.pow(s, 0.85)), 0.9);
+  const zLo = bot + rim, zHi = H - rim, leaves = [];
+  // boczne zylki liscia (w okienkach jako mostki, w konturze jako linie)
+  const VEINS = []; for (const s of [0.28, 0.48, 0.66]) for (const sg of [1, -1]) VEINS.push([s * L, 0, (s + 0.16) * L, sg * halfW(s + 0.16) * 0.85]);
+  const segD = (x, y, q) => { const dx = q[2] - q[0], dy = q[3] - q[1], t = Math.max(0, Math.min(1, ((x - q[0]) * dx + (y - q[1]) * dy) / (dx * dx + dy * dy))); return Math.hypot(x - q[0] - t * dx, y - q[1] - t * dy); };
+  if (perf === 'leaf' || v.leaf === 'relief') {
+    for (let r = 0; r < nr; r++) for (let k = 0; k < nl; k++) {
+      const zc = zLo + (r + 0.5) * (zHi - zLo) / nr, th = (k + (r % 2 ? 0.5 : 0)) / nl * TAU, tilt = ((k + r) % 2 ? 1 : -1) * (v.ltilt == null ? 20 : v.ltilt) * Math.PI / 180;
+      leaves.push({ zc, th, tilt, R: R0(Math.min(1, Math.max(0, zc / H))) });
+    }
+    if (zHi - zLo < L * 0.6 * nr) warn.push('Liście nie mieszczą się w wysokości - zmniejsz liście albo liczbę rzędów. / Blätter passen nicht in die Höhe.');
+  }
+  // punkt sciany (kat, z) -> wspolrzedne liscia (x wzdluz liscia od ogonka, y w poprzek), mm
+  const leafLocal = (lf, th, z) => {
+    let d = th - lf.th; d -= Math.round(d / TAU) * TAU;
+    const u = d * lf.R, w = z - lf.zc, c = Math.cos(lf.tilt), s = Math.sin(lf.tilt);
+    return [w * c + u * s + L / 2, -w * s + u * c];
+  };
+  const Fat = (th, z) => {
+    if (z < zLo || z > zHi) return Math.max(zLo - z, z - zHi, 1e-3);
+    const t = z / H, f = th - tw * t; let F;
+    if (perf === 'diamond' || perf === 'circle' || perf === 'hex') {
+      const cw = TAU * R0(t) / nc, a = f / TAU * nc, b = (z - zLo) / cell;
+      if (perf === 'diamond') {
+        const x = a + b, y = a - b, dx = Math.abs(x - Math.round(x)), dy = Math.abs(y - Math.round(y));
+        F = web / 2 - Math.min(dx, dy) * (cw + cell) / 2 * Math.SQRT1_2;
+      } else {
+        // otwory na siatce przesunietej co drugi rzad (jak plaster miodu)
+        const rh = Math.min(cw, cell) / 2 - web / 2; let best = 1e9;
+        const row0 = Math.floor(b);
+        for (let rr = row0 - 1; rr <= row0 + 1; rr++) {
+          const off = (rr & 1) ? 0.5 : 0, k = Math.round(a - off);
+          for (let kk = k - 1; kk <= k + 1; kk++) {
+            const px = (a - (kk + off)) * cw, py = (b - (rr + 0.5)) * cell;
+            let dist;
+            if (perf === 'circle') dist = Math.hypot(px, py) - rh;
+            else { // szesciokat (iq sdHexagon), wierzcholkiem do gory
+              let qx = Math.abs(py), qy = Math.abs(px); const kx = -0.866025404, ky = 0.5, kz = 0.577350269;
+              const dd = 2 * Math.min(kx * qx + ky * qy, 0); qx -= dd * kx; qy -= dd * ky;
+              const cx = Math.min(Math.max(qx, -kz * rh), kz * rh); qx -= cx; qy -= rh;
+              dist = Math.hypot(qx, qy) * Math.sign(qy);
+            }
+            if (dist < best) best = dist;
+          }
+        }
+        F = best;
+      }
+    } else if (perf === 'leaf') {
+      F = 1e9;
+      for (const lf of leaves) {
+        if (Math.abs(z - lf.zc) > L) continue;
+        const [x, y] = leafLocal(lf, th, z); if (x < -2 || x > L + 2 || Math.abs(y) > LW) continue;
+        let vd = 1e9; for (const q of VEINS) vd = Math.min(vd, segD(x, y, q));
+        const g = Math.max(Math.abs(y) - halfW(x / L), web / 2 - Math.abs(y), web / 2 - vd, -x, x - L);   // okienko liscia z zylkami jako mostkami
+        if (g < F) F = g;
+      }
+    } else F = 1e9;
+    F = Math.max(F, zLo - z, z - zHi);
+    return Math.abs(F) < 1e-5 ? 1e-5 : F;
+  };
+  // ---- siatka ----
+  const Rmax = Math.max(rB, rM, rT) + wa;
+  const fine = perf !== 'none', step = fine ? (v.det === 'hi' ? 0.6 : 0.9) : 1.2;
+  let Nu = fine ? Math.ceil(TAU * Rmax / step) : Math.max(128, wn * 16, nS ? 360 : 0, Math.ceil(TAU * Rmax / 2));
+  if (tw && (nS || wn)) Nu = Math.max(Nu, 360);
+  Nu = Math.min(Nu, 1200);
+  const Nv = Math.max(40, Math.min(600, Math.ceil(H / (fine ? step : (tw ? 1 : 1.5)))));
+  const dz = H / Nv, jb = Math.max(1, Math.round(bot / dz)), zb = jb * dz;
+  const thOf = (fi) => TAU * fi / Nu;
+  const PO = (fi, fj) => { const th = thOf(fi), z = fj * dz, r = rOut(th, z / H); return [r * Math.cos(th), r * Math.sin(th), z]; };
+  const PI = (fi, fj) => { const th = thOf(fi), z = fj * dz, r = Math.max(0.8, rOut(th, z / H) - wall); return [r * Math.cos(th), r * Math.sin(th), z]; };
+  let minIn = 1e9; for (let i = 0; i < Nu; i += 4) for (const t of [zb / H, 0.5, bp, 1]) minIn = Math.min(minIn, rOut(thOf(i), t) - wall);
+  if (minIn < 2) warn.push('Ścianka/fale za grube przy tej średnicy - zwiększ średnicę. / Wand oder Wellen zu dick für diesen Durchmesser.');
+  const O = [], I = [], Fg = [];
+  for (let j = 0; j <= Nv; j++) {
+    const ro = [], ri = [], fr = [];
+    for (let i = 0; i < Nu; i++) { ro.push(PO(i, j)); ri.push(j >= jb ? PI(i, j) : null); fr.push(j >= jb && fine ? Fat(thOf(i), j * dz) : 1); }
+    O.push(ro); I.push(ri); Fg.push(fr);
+  }
+  const T = [], X = new Map();
+  // punkt przeciecia na krawedzi siatki - liczony raz (ten sam obiekt dla obu sasiednich komorek)
+  const cross = (i0, j0, i1, j1) => {
+    if (i0 === i1) { i0 %= Nu; i1 = i0; }   // pionowa krawedz na szwie (i = Nu) == i = 0
+    const a = (j0 < j1 || (j0 === j1 && i0 < i1)) ? [i0, j0, i1, j1] : [i1, j1, i0, j0];
+    const key = a.join(','); let p = X.get(key); if (p) return p;
+    const fa = Fg[a[1]][a[0] % Nu], fb = Fg[a[3]][a[2] % Nu], t = fa / (fa - fb), fi = a[0] + (a[2] - a[0]) * t, fj = a[1] + (a[3] - a[1]) * t;
+    p = { o: PO(fi, fj), n: PI(fi, fj), x: true }; X.set(key, p); return p;
+  };
+  for (let j = 0; j < Nv; j++) for (let i = 0; i < Nu; i++) {
+    const i1 = (i + 1) % Nu, C = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]];
+    const corner = (c) => ({ o: O[c[1]][c[0] % Nu], n: I[c[1]][c[0] % Nu], x: false });
+    if (j < jb) { const a = O[j][i], b = O[j][i1], c = O[j + 1][i1], d = O[j + 1][i]; T.push(a, b, c, a, c, d); continue; }
+    const f = C.map(c => Fg[c[1]][c[0] % Nu]);
+    if (f[0] > 0 && f[1] > 0 && f[2] > 0 && f[3] > 0) {
+      const a = O[j][i], b = O[j][i1], c = O[j + 1][i1], d = O[j + 1][i]; T.push(a, b, c, a, c, d);
+      const A = I[j][i], B = I[j][i1], Cc = I[j + 1][i1], D = I[j + 1][i]; T.push(A, Cc, B, A, D, Cc); continue;
+    }
+    const P = [];
+    for (let k = 0; k < 4; k++) {
+      const c = C[k], d = C[(k + 1) % 4], fc = f[k], fd = f[(k + 1) % 4];
+      if (fc >= 0) P.push(corner(c));
+      if ((fc >= 0) !== (fd >= 0)) P.push(cross(c[0], c[1], d[0], d[1]));
+    }
+    if (P.length < 3) continue;
+    for (let k = 1; k < P.length - 1; k++) { T.push(P[0].o, P[k].o, P[k + 1].o); T.push(P[0].n, P[k + 1].n, P[k].n); }
+    for (let k = 0; k < P.length; k++) {
+      const p = P[k], q = P[(k + 1) % P.length];
+      if (p.x && q.x) { T.push(q.o, p.o, p.n, q.o, p.n, q.n); }
+    }
+  }
+  // gorny brzeg, dno z zewnatrz, dno w srodku
+  for (let i = 0; i < Nu; i++) {
+    const i1 = (i + 1) % Nu;
+    T.push(O[Nv][i], O[Nv][i1], I[Nv][i1], O[Nv][i], I[Nv][i1], I[Nv][i]);
+    T.push([0, 0, 0], O[0][i1], O[0][i]);
+    T.push([0, 0, zb], I[jb][i], I[jb][i1]);
+  }
+  // ---- kontury lisci (wypukle paski na zewnetrznej sciance) ----
+  const RIB = [];
+  if (v.leaf === 'relief') {
+    const lw = v.lw || 1.4, dep = v.ldep || 1;
+    const lines = [], NS = 28;
+    const side = (sg) => { const p = []; for (let k = 0; k <= NS; k++) { const s = k / NS; p.push([s * L, sg * halfW(s)]); } return p; };
+    lines.push(side(1), side(-1));
+    lines.push([[-0.12 * L, 0], [0.9 * L, 0]]);   // ogonek + zylka srodkowa
+    for (const q of VEINS) lines.push([[q[0], q[1]], [q[2], q[3]]]);   // boczne zylki
+    for (const lf of leaves) {
+      const c = Math.cos(lf.tilt), s = Math.sin(lf.tilt);
+      // (x,y) liscia -> (kat, z) na sciance
+      const toW = (x, y) => { const xx = x - L / 2, w = xx * c - y * s, u = xx * s + y * c; return [lf.th + u / lf.R, lf.zc + w]; };
+      for (const ln of lines) for (let k = 0; k + 1 < ln.length; k++) {
+        const [tA, zA] = toW(ln[k][0], ln[k][1]), [tB, zB] = toW(ln[k + 1][0], ln[k + 1][1]);
+        ribbon(RIB, tA, zA, tB, zB, lw, dep);
+      }
+    }
+  }
+  function ribbon(out, tA, zA, tB, zB, lw, dep) {
+    const P3 = (th, z, dr) => { const r = rOut(th, Math.min(1, Math.max(0, z / H))) + dr; return [r * Math.cos(th), r * Math.sin(th), z]; };
+    const a = P3(tA, zA, 0), b = P3(tB, zB, 0); let dx = b[0] - a[0], dy = b[1] - a[1], dzz = b[2] - a[2];
+    const len = Math.hypot(dx, dy, dzz); if (len < 1e-4) return;
+    dx /= len; dy /= len; dzz /= len;
+    const tm = (tA + tB) / 2, nx = Math.cos(tm), ny = Math.sin(tm);   // normalna ~ promien
+    let sx = dy * 0 - dzz * ny, sy = dzz * nx - dx * 0, sz = dx * ny - dy * nx; const sl = Math.hypot(sx, sy, sz) || 1; sx /= sl; sy /= sl; sz /= sl;
+    const e = lw / 2, h = lw / 2;   // przedluzenie na laczeniach
+    const A = [a[0] - dx * e, a[1] - dy * e, a[2] - dzz * e], B = [b[0] + dx * e, b[1] + dy * e, b[2] + dzz * e];
+    const Q = (p, ss, rr) => [p[0] + sx * ss + nx * rr, p[1] + sy * ss + ny * rr, p[2] + sz * ss];
+    const c = [Q(A, -h, -0.5), Q(A, h, -0.5), Q(B, h, -0.5), Q(B, -h, -0.5), Q(A, -h, dep), Q(A, h, dep), Q(B, h, dep), Q(B, -h, dep)];
+    const F = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+    const tri = []; for (const q of F) tri.push(c[q[0]], c[q[1]], c[q[2]]);
+    if (volOf(tri) < 0) for (let k = 0; k < tri.length; k += 3) { const t2 = tri[k + 1]; tri[k + 1] = tri[k + 2]; tri[k + 2] = t2; }
+    for (const p of tri) out.push(p);
+  }
+  function volOf(tr) { let s = 0; for (let k = 0; k < tr.length; k += 3) { const a = tr[k], b = tr[k + 1], c = tr[k + 2]; s += a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]); } return s / 6; }
+  if (volOf(T) < 0) for (let k = 0; k < T.length; k += 3) { const t2 = T[k + 1]; T[k + 1] = T[k + 2]; T[k + 2] = t2; }
+  const VASE = T.concat(RIB);
+  // ---- pokrywka (gora na stole) ----
+  let LID = null;
+  if (v.lid === 'yes') {
+    const N = Math.max(128, wn * 16, nS ? 360 : 0), pt = 2, lipH = 5, lipW = 1.6, clr = v.lclr == null ? 0.3 : v.lclr;
+    const ring = (fr, z) => { const p = []; for (let k = 0; k < N; k++) { const th = TAU * k / N, r = Math.max(0.5, fr(th)); p.push([r * Math.cos(th), r * Math.sin(th), z]); } return p; };
+    const top = (th) => rOut(th, 1), lo = (th) => rOut(th, 1) - wall - clr, li = (th) => rOut(th, 1) - wall - clr - lipW;
+    const Rs = [ring(top, 0), ring(top, pt), ring(lo, pt), ring(lo, pt + lipH), ring(li, pt + lipH), ring(li, pt)];
+    const LT = [];
+    for (let r = 0; r + 1 < Rs.length; r++) for (let k = 0; k < N; k++) { const k1 = (k + 1) % N, a = Rs[r][k], b = Rs[r][k1], c = Rs[r + 1][k1], d = Rs[r + 1][k]; LT.push(a, b, c, a, c, d); }
+    for (let k = 0; k < N; k++) { const k1 = (k + 1) % N; LT.push([0, 0, 0], Rs[0][k1], Rs[0][k]); LT.push([0, 0, pt], Rs[5][k], Rs[5][k1]); }
+    if (volOf(LT) < 0) for (let k = 0; k < LT.length; k += 3) { const t2 = LT[k + 1]; LT[k + 1] = LT[k + 2]; LT[k + 2] = t2; }
+    LID = LT;
+  }
+  return { VASE, LID, warn, info: { Nu, Nv, nc, tris: VASE.length / 3 } };
+}
+
 const TPLS = [
 /* ---------- 1. oslona radiacyjna ---------- */
 { id: 'shield', name: 'Osłona radiacyjna', icon: 'shield',
@@ -2800,6 +2991,50 @@ const TPLS = [
     return { parts: [{ name: 'Pokrętło', file: 'pokretlo_' + v.D + 'mm', tris: G.toBed(T), asmTris: T, count: 1, color: COL[5], asm: [[0, 0, 0]] }], warn,
       info: [['Otwór na oś', f1(ri * 2) + ' mm' + (v.flat === 'yes' ? ', płaskie ' + f1(v.flatW) + ' mm' : '')]], bom: ['jeśli luźne: kropla kleju albo wkręt M3 z boku (dowierć)'] };
   } },
+/* ---------- wazon / pudelko ze wzorem (v5.47) ---------- */
+{ id: 'vase', name: 'Wazon / pudełko ze wzorem (Vase / Dose mit Muster)', icon: 'vase',
+  desc: 'Wazon albo pudełko z falami, spiralą, ażurem i konturami liści, opcjonalnie z pokrywką. / Vase oder Dose mit Wellen, Spirale, durchbrochenem Muster und Blatt-Konturen, wahlweise mit Deckel.',
+  p: [
+    { k: 'shape', label: 'Kształt / Form', group: 'Kształt / Form', def: 'round', opts: [['round', 'okrągły / rund'], ['poly', 'wielokąt / Vieleck']] },
+    { k: 'sides', label: 'Liczba boków / Ecken', def: 6, min: 3, max: 12, step: 1, show: (v) => v.shape === 'poly' },
+    { k: 'H', label: 'Wysokość / Höhe', def: 120, min: 20, max: 300, step: 1 },
+    { k: 'Db', label: 'Średnica dołu / Ø unten', def: 70, min: 20, max: 250, step: 1 },
+    { k: 'Dm', label: 'Średnica brzuszka / Ø Bauch', def: 90, min: 20, max: 250, step: 1 },
+    { k: 'bpos', label: 'Brzuszek na wysokości (%) / Bauch bei (%)', def: 45, min: 10, max: 90, step: 1 },
+    { k: 'Dt', label: 'Średnica góry / Ø oben', def: 70, min: 20, max: 250, step: 1 },
+    { k: 'wall', label: 'Ścianka / Wandstärke', def: 2, min: 0.8, max: 5, step: 0.1 },
+    { k: 'bot', label: 'Dno / Boden', def: 2, min: 0.8, max: 6, step: 0.1 },
+    { k: 'wn', label: 'Fale: ile / Wellen: Anzahl', group: 'Wzór / Muster', def: 0, min: 0, max: 40, step: 1, hint: '0 = bez fal / ohne Wellen' },
+    { k: 'wa', label: 'Fale: głębokość / Wellen: Tiefe', def: 4, min: 0.5, max: 12, step: 0.5, show: (v) => v.wn > 0 },
+    { k: 'twist', label: 'Spirala: skręt (°) / Spirale: Drehung (°)', def: 0, min: -720, max: 720, step: 5, hint: 'działa z falami, wielokątem i ażurem / wirkt mit Wellen, Vieleck und Durchbrochen' },
+    { k: 'perf', label: 'Ażur / Durchbrochen', group: 'Ażur / Durchbrochen', def: 'none', opts: [['none', 'brak / keins'], ['diamond', 'romby / Rauten'], ['circle', 'kółka / Kreise'], ['hex', 'plaster miodu / Waben'], ['leaf', 'okienka-liście / Blatt-Fenster']] },
+    { k: 'cell', label: 'Wielkość oczka / Zellgröße', def: 12, min: 5, max: 40, step: 0.5, show: (v) => ['diamond', 'circle', 'hex'].includes(v.perf) },
+    { k: 'web', label: 'Szerokość mostków / Stegbreite', def: 2.5, min: 1, max: 10, step: 0.1, show: (v) => v.perf !== 'none' },
+    { k: 'rim', label: 'Pełny pas u góry i dołu / Voller Rand oben+unten', def: 6, min: 2, max: 60, step: 0.5, show: (v) => v.perf !== 'none' || v.leaf === 'relief' },
+    { k: 'det', label: 'Dokładność / Genauigkeit', def: 'norm', opts: [['norm', 'normalna / normal'], ['hi', 'wysoka (wolniej) / hoch (langsamer)']], show: (v) => v.perf !== 'none' },
+    { k: 'leaf', label: 'Kontur liści / Blatt-Kontur', group: 'Liście / Blätter', def: 'none', opts: [['none', 'brak / keine'], ['relief', 'wypukły na ściance / erhaben auf der Wand']] },
+    { k: 'lcount', label: 'Liście dookoła / Blätter rundherum', def: 6, min: 1, max: 24, step: 1, show: (v) => v.leaf === 'relief' || v.perf === 'leaf' },
+    { k: 'lrows', label: 'Rzędy liści / Blatt-Reihen', def: 1, min: 1, max: 6, step: 1, show: (v) => v.leaf === 'relief' || v.perf === 'leaf' },
+    { k: 'lsize', label: 'Długość liścia / Blattlänge', def: 45, min: 10, max: 200, step: 1, show: (v) => v.leaf === 'relief' || v.perf === 'leaf' },
+    { k: 'ltilt', label: 'Pochylenie liści (°) / Neigung (°)', def: 20, min: 0, max: 60, step: 1, show: (v) => v.leaf === 'relief' || v.perf === 'leaf' },
+    { k: 'lw', label: 'Grubość linii / Linienbreite', def: 1.4, min: 0.8, max: 4, step: 0.1, show: (v) => v.leaf === 'relief', hint: 'min. 2 ścieżki dyszy, np. 0,8-1,6 / mind. 2 Linien der Düse' },
+    { k: 'ldep', label: 'Wysokość linii / Linienhöhe', def: 1, min: 0.4, max: 3, step: 0.1, show: (v) => v.leaf === 'relief' },
+    { k: 'lid', label: 'Pokrywka / Deckel', group: 'Pokrywka / Deckel', def: 'no', opts: [['no', 'nie / nein'], ['yes', 'tak / ja']] },
+    { k: 'lclr', label: 'Luz pokrywki / Deckel-Spiel', def: 0.3, min: 0.1, max: 1, step: 0.05, show: (v) => v.lid === 'yes' }
+  ],
+  build(v) {
+    const r = vaseBuild(v), H = v.H;
+    const parts = [{ name: 'Wazon / Vase', file: 'wazon_' + Math.round(H) + 'mm', tris: G.toBed(r.VASE), asmTris: r.VASE, count: 1, color: COL[4], asm: [[0, 0, 0]] }];
+    if (r.LID) {
+      const A = []; for (let k = 0; k < r.LID.length; k += 3) { const f = (p) => [p[0], p[1], H + 2 - p[2]]; A.push(f(r.LID[k]), f(r.LID[k + 2]), f(r.LID[k + 1])); }
+      parts.push({ name: 'Pokrywka / Deckel', file: 'pokrywka_' + Math.round(H) + 'mm', tris: G.toBed(r.LID), asmTris: A, count: 1, color: COL[0], asm: [[0, 0, 0]] });
+    }
+    const info = [['Trójkąty / Dreiecke', String(Math.round(r.VASE.length / 3))]];
+    if (v.perf === 'none' && v.leaf !== 'relief') info.push(['Slicer', 'można drukować w trybie „Spiralvase” / Spiralvase-Modus möglich']);
+    else info.push(['Slicer', 'normalnie, bez trybu „Spiralvase” / normal drucken, ohne Spiralvase']);
+    if (r.LID) info.push(['Pokrywka / Deckel', 'drukuj górą na stole / mit der Oberseite aufs Druckbett']);
+    return { parts, warn: r.warn, info };
+  } },
 /* ---------- 7. akwarium ---------- */
 { id: 'aqua', name: 'Akwarium', icon: 'aqua',
   desc: 'Części do akwarium: uchwyt na wąż, uchwyt na grzałkę, pierścień do karmienia, osłona wlotu filtra, jaskinia i koszyczek na roślinkę. Drukuj z PETG.',
@@ -3664,6 +3899,8 @@ function freeThreadMatch(mode) {
   toast('Dopasowano do „' + b.name + '”: M' + String(b.tm).replace('.', ',') + (b.pitch ? ', skok ' + String(b.pitch).replace('.', ',') : ''));
 }
 // promien gwintu w punkcie (kat, wysokosc): profil ISO 60 st. (dno P/4, szczyt P/8), gwint prawy
+// v5.46: punkty na obwodzie gwintu co ok. 0,3 mm (min 40, max 128) - wiecej i tak nie widac w druku
+function thrN(M, N) { return Math.round(clamp(Math.PI * M / 0.3, 40, Math.min(128, Math.max(48, N)))); }
 function thrR(rmaj, P, th, z) {
   const dep = 0.5413 * P, rmin = rmaj - dep;
   let u = z / P - th / (2 * Math.PI); u -= Math.floor(u);
@@ -3939,8 +4176,8 @@ function freeLocal(o) {
     loft(T, A, B); capDown(T, A, [0, 0, -h / 2]); capUp(T, B, [0, 0, h / 2]); w = 2 * R; d = f;
   } else if (o.type === 'bolt') {
     // sruba z gwintem: leb na dole (drukuje sie bez podpor), gwint do gory, czubek sfazowany
-    const M = +o.tm || 10, tt = thrT(M), P = o.pitch > 0 ? o.pitch : tt[0], rmaj = M / 2 - 0.1, rmin = rmaj - 0.5413 * P, Nt = Math.max(48, N);
-    const L = clamp(o.blen || 25, 2 * P, 400), hd = o.bhead || 'hex', K = hd === 'brak' ? 0 : +(0.65 * M).toFixed(2), z1 = K + L, dz = P / 12, R = [];
+    const M = +o.tm || 10, tt = thrT(M), P = o.pitch > 0 ? o.pitch : tt[0], rmaj = M / 2 - 0.1, rmin = rmaj - 0.5413 * P, Nt = thrN(M, N);   // v5.46: mniej trojkatow (M5: 97 tys. -> ok. 30 tys.)
+    const L = clamp(o.blen || 25, 2 * P, 400), hd = o.bhead || 'hex', K = hd === 'brak' ? 0 : +(0.65 * M).toFixed(2), z1 = K + L, dz = P / 10, R = [];
     const hr = hd === 'okr' ? () => tt[1] * 0.6 : hexR(tt[1]);
     const thr = (z) => (t) => Math.min(thrR(rmaj, P, t, z), rmin + Math.max(0, z1 - z), hd === 'brak' ? rmin + Math.max(0, z) : 1e9);
     if (K > 0) { const c = Math.min(0.6, K / 4); R.push(ringF(Nt, (t) => hr(t) - c, 0), ringF(Nt, hr, c), ringF(Nt, hr, K - c), ringF(Nt, (t) => hr(t) - c, K)); }
@@ -3949,7 +4186,7 @@ function freeLocal(o) {
     const bb = G.bbox(T); w = bb.size[0]; d = bb.size[1]; h = z1;
   } else if (o.type === 'tnut') {
     // nakretka z gwintem (wewnatrz luz clr), wejscie sfazowane z obu stron
-    const M = +o.tm || 10, tt = thrT(M), P = o.pitch > 0 ? o.pitch : tt[0], cl = clamp(o.clr == null ? 0.25 : o.clr, 0, 1), rmaj = M / 2 + cl, Nt = Math.max(48, N), H = Math.max(h, 2 * P), dz = P / 12;
+    const M = +o.tm || 10, tt = thrT(M), P = o.pitch > 0 ? o.pitch : tt[0], cl = clamp(o.clr == null ? 0.25 : o.clr, 0, 1), rmaj = M / 2 + cl, Nt = thrN(M, N), H = Math.max(h, 2 * P), dz = P / 10;
     const Hx = hexR(tt[1]), ch = Math.min(0.8, H / 6), out = [ringF(Nt, (t) => Hx(t) - ch, 0), ringF(Nt, Hx, ch), ringF(Nt, Hx, H - ch), ringF(Nt, (t) => Hx(t) - ch, H)], inn = [];
     const fz = (z) => (t) => Math.max(thrR(rmaj, P, t, z), rmaj + 0.5 - z, rmaj + 0.5 - (H - z));
     for (let z = H, i = 0; ; i++) { z = Math.max(0, H - i * dz); inn.push(ringF(Nt, fz(z), z)); if (z <= 1e-9) break; }
@@ -4027,7 +4264,8 @@ function freeLocal(o) {
   }
   if (fil > 0.05) T = flatTris(dropFlat(triplets(T)));
   const res = { T, w, d, h, comps: comps || [T], abs: typeof absBB !== 'undefined' ? absBB : null, slowJoin: typeof slowJoin !== 'undefined' && slowJoin };
-  if (FREE_GEO.size > 300) FREE_GEO.clear();
+  if (FREE_GEO.size > 300 || (FREE_GEO._n || 0) > 1500000) { FREE_GEO.clear(); FREE_GEO._n = 0; }   // v5.46: limit pamieci (trojkaty)
+  FREE_GEO._n = (FREE_GEO._n || 0) + T.length / 3;
   FREE_GEO.set(key, res);
   return res;
 }
@@ -4054,7 +4292,8 @@ function freePlacedShape(o) {
   const rot = !!(rx || ry || rz || scl || mir), T = rot ? fw(L.T.map(RS)) : L.T;
   const bb = G.bbox(T.length ? T : [[0, 0, 0]]), off = [-(bb.mn[0] + bb.mx[0]) / 2, -(bb.mn[1] + bb.mx[1]) / 2, -bb.mn[2]];
   const res = { P: G.move(T, ...off), size: bb.size, L, scale: scl || [1, 1, 1], RS, rot, off, fw, comps: null, key };
-  if (FREE_PL.size > 200) FREE_PL.clear();
+  if (FREE_PL.size > 200 || (FREE_PL._n || 0) > 1500000) { FREE_PL.clear(); FREE_PL._n = 0; }   // v5.46: limit pamieci (trojkaty)
+  FREE_PL._n = (FREE_PL._n || 0) + res.P.length / 3;
   FREE_PL.set(key, res);
   return res;
 }

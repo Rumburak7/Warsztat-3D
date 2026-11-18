@@ -716,7 +716,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.51</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.52</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -5142,7 +5142,7 @@ function renderFreePanel() {
       h += `<div class="pf full"><small>Moduł m = <b>${(Math.round(mm * 100) / 100).toLocaleString('pl-PL')}</b> mm - dwie zębatki zazębiają się, gdy mają <b>ten sam moduł</b> (średnica = moduł × (zęby + 2)). Odległość osi = moduł × (zęby1 + zęby2) / 2.</small></div>`;
       h += freeNum('t2', 'Zęby drugiej zębatki', o.t2 || 20, 1, false, 'ile zębów ma mieć zębatka do pary') + `<div class="pf"><span>&nbsp;</span><button type="button" class="btn sm primary" data-act="gearPair" title="Dodaj drugą zębatkę, która od razu pasuje (ten sam moduł, właściwa odległość)">&#9881; Dodaj pasującą</button></div>`;
     }
-    if (o.type === 'box' && cur.v.objs.includes(o)) h += `<div class="pf full"><span>Rogi pionowe / Ecken</span><div style="display:flex;gap:6px"><button type="button" class="btn sm primary" data-act="cornR" title="Dodaje 4 wycinaki - wszystkie pionowe rogi tej kostki będą zaokrąglone">⌒ Zaokrąglij rogi</button><button type="button" class="btn sm" data-act="cornC" title="Dodaje 4 wycinaki - wszystkie pionowe rogi tej kostki będą ścięte pod 45°">◸ Zetnij rogi</button></div></div>`;
+    if (!o.hole && cur.v.objs.includes(o)) h += `<div class="pf full"><span>Rogi pionowe / Ecken</span><div style="display:flex;gap:6px"><button type="button" class="btn sm primary" data-act="cornR" title="Dodaje 4 wycinaki w pionowych rogach - przy kostce dokładnie w jej rogach, przy grupie / modelu STL w rogach obrysu (od góry)">⌒ Zaokrąglij rogi</button><button type="button" class="btn sm" data-act="cornC" title="Dodaje 4 wycinaki - pionowe rogi będą ścięte pod 45° (przy grupie / modelu: rogi obrysu)">◸ Zetnij rogi</button></div></div>`;
     if (o.type === 'bjball' || o.type === 'bjsock') h += `<div class="pf full"><small>Kulka Ø <b>${f1(o.bd || 12)}</b> mm, luz ${f1(o.bc == null ? 0.3 : o.bc)} mm. Wymiary są stałe, żeby kulka pasowała do gniazda - inny rozmiar: dodaj nowy „Przegub kulowy”.</small></div>`;
     if (o.type === 'rack') {
       const m = o.rmod || 2, p = Math.PI * m, hR = Math.min(p / 2 - 0.05, (p / 2 - 0.25 * m) / 2 + 1.25 * m * Math.tan(15 * Math.PI / 180)), nT = Math.max(1, Math.floor((o.w - 2 * hR) / p) + 1), gz = freeNearGear(o);
@@ -5243,9 +5243,14 @@ function freeNearGear(r) {
 // v5.43: zebatka z projektu ustawiona na listwie: zab zebatki w przerwe listwy (najblizej srodka), os = czubki zebow + (promien - 2·modul)
 // v5.51: 4 wycinaki na pionowe rogi zaznaczonej kostki (tez obroconej wokol Z)
 function freeCorners(type) {
-  const o = FR.sel.length === 1 && freeObj(FR.sel[0]);
-  if (!o || o.type !== 'box' || !cur.v.objs.includes(o)) { toast('Zaznacz jedną kostkę'); return; }
-  if (Math.abs(o.rx || 0) > 0.01 || Math.abs(o.ry || 0) > 0.01) { toast('Kostka nie może być pochylona (tylko obrót wokół Z)'); return; }
+  const o0 = FR.sel.length === 1 && freeObj(FR.sel[0]);
+  if (!o0 || !cur.v.objs.includes(o0) || o0.hole) { toast('Zaznacz jeden klocek, grupę albo model'); return; }
+  // v5.52: kostka (tez obrocona wokol Z) - dokladnie jej rogi; kazdy inny klocek / grupa / plik STL - rogi jego obrysu (osie X/Y)
+  let o = o0;
+  if (o0.type !== 'box' || Math.abs(o0.rx || 0) > 0.01 || Math.abs(o0.ry || 0) > 0.01) {
+    const B = G.bbox(freeWorld(o0));
+    o = { w: B.size[0], d: B.size[1], h: B.size[2], x: (B.mn[0] + B.mx[0]) / 2, y: (B.mn[1] + B.mx[1]) / 2, z: B.mn[2], rz: 0 };
+  }
   const mx = Math.min(o.w, o.d) / 2;
   const ans = prompt((type === 'fillet' ? 'Promień zaokrąglenia rogów' : 'Wielkość ścięcia rogów') + ' (mm, max ' + f1(mx) + '):', String(Math.min(5, +f1(mx))));
   if (ans == null) return;

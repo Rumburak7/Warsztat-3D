@@ -95,11 +95,11 @@ button{cursor:pointer}
 .seg button.on{background:var(--accent2);color:#fff}
 #btnShadow.on,#btnMeasure.on,#btnCut.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
 #view.measuring canvas{cursor:crosshair}
-#measLab{position:absolute;z-index:3;transform:translate(-50%,-130%);background:rgba(20,22,26,.88);color:#fff;border-radius:8px;padding:5px 9px;font-size:12px;line-height:1.35;pointer-events:none;white-space:nowrap;text-align:center}
-#measLab b{display:block;font-size:15px;color:#ff8a80}
+#measLab{position:absolute;z-index:3;transform:translate(-50%,-130%);background:rgba(20,22,26,.88);color:#fff;border-radius:8px;padding:8px 14px;font-size:17px;line-height:1.4;pointer-events:none;white-space:nowrap;text-align:center}
+#measLab b{display:block;font-size:28px;color:#ff8a80}
 #measLab span{color:#ddd}
 #skdLab{position:absolute;z-index:3;background:rgba(20,22,26,.85);color:#ffd59a;border-radius:6px;padding:2px 7px;font-size:12px;pointer-events:none;white-space:nowrap}
-#measLab .mx{position:absolute;right:-8px;top:-8px;width:18px;height:18px;border-radius:50%;background:#ff3b30;color:#fff;font-style:normal;font-size:11px;line-height:18px;text-align:center;pointer-events:auto;cursor:pointer}
+#measLab .mx{position:absolute;right:-11px;top:-11px;width:26px;height:26px;border-radius:50%;background:#ff3b30;color:#fff;font-style:normal;font-size:15px;line-height:26px;text-align:center;pointer-events:auto;cursor:pointer}
 #cutBar{position:absolute;z-index:3;left:50%;bottom:30px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:var(--panel,#fff);border:1px solid var(--line,#ccc);border-radius:10px;padding:6px 10px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 #cutBar .ct{font-weight:600;font-size:13px}
 #cropBar{position:absolute;z-index:4;right:12px;top:12px;width:330px;background:var(--panel,#fff);border:1px solid var(--line,#ccc);border-radius:10px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.18);font-size:13px}
@@ -745,7 +745,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.64</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.65</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -8133,7 +8133,7 @@ function measUpdate() {
   M.key = key;
   if (M.grp) { v3.scene.remove(M.grp); M.grp.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   const grp = M.grp = new THREE.Group();
-  const dots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(W), M.dotMat || (M.dotMat = new THREE.PointsMaterial({ color: 0xff3b30, size: 10, sizeAttenuation: false, depthTest: false })));
+  const dots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(W), M.dotMat || (M.dotMat = new THREE.PointsMaterial({ color: 0xff3b30, size: 14, sizeAttenuation: false, depthTest: false })));
   dots.renderOrder = 999; grp.add(dots);
   if (W.length === 2) {
     const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(W), M.lnMat || (M.lnMat = new THREE.LineBasicMaterial({ color: 0xff3b30, depthTest: false })));

@@ -6000,7 +6000,7 @@ async function modelFilePieces(f, opts) {
     let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
     for (let k = 0; k < F.length; k++) { const c = k % 3; if (F[k] < mn[c]) mn[c] = F[k]; if (F[k] > mx[c]) mx[c] = F[k]; }
     const big = Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]);
-    if (big > 0 && (big < 5 || big > 1000)) { const k = 50 / big; for (let q = 0; q < F.length; q++) F[q] *= k; opts.objScaled = true; }
+    if (big > 0 && (big < 20 || big > 1000)) { const k = 50 / big; for (let q = 0; q < F.length; q++) F[q] *= k; opts.objScaled = true; }
     pieces = [{ F, name: nm.replace(/\.obj$/i, ''), color: null, sub: 'normal_part' }];
   } else {
     const F = parseStlFlat(buf); if (F.length < 36) throw new Error('To nie wygląda na plik STL (albo jest pusty).');

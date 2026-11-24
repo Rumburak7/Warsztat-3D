@@ -385,7 +385,17 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 .dlg.big .hint{font-size:17px;color:var(--ink2)}
 .skWrap{display:grid;grid-template-columns:minmax(0,1fr) 12px var(--skw,260px);gap:6px;align-items:start}.skWrap .pGrip{align-self:stretch;border-radius:6px;border:1px solid var(--line)}.skRow label{flex:1}.skRow input{flex:1;min-width:50px}
 #modal.skM{padding:8px}.dlg.big.skFull{width:calc(100vw - 16px);height:calc(100vh - 16px);max-height:none;padding:14px 20px;gap:8px;overflow:hidden}.dlg.skFull h3{font-size:24px;margin:0}.dlg.skFull .hint{font-size:14px}.dlg.skFull .skWrap{flex:1;min-height:0;align-items:stretch}.dlg.skFull .skCvBox{min-height:0;min-width:0;position:relative}.dlg.skFull #skCv{position:absolute;inset:0;width:100%;height:100%}.dlg.skFull .skSide{overflow:auto}#skCv{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);cursor:crosshair;touch-action:none;display:block}
-.skSide{display:flex;flex-direction:column;gap:12px;font-size:14px}.skBox{border:1px solid var(--line);border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:7px}.skRow{display:flex;gap:8px;flex-wrap:wrap}.skRow label{display:flex;align-items:center;gap:4px}.skRow input{width:100%;min-width:50px;height:30px;font-size:15px}.skInfo{font-size:14px;line-height:1.5}.skBad{color:#d9452f;font-weight:600}
+.skSide{display:flex;flex-direction:column;gap:12px;font-size:14px}.skBox{border:1px solid var(--line);border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:7px}
+/* v5.70: kolorowe przyciski w szkicu - latwiej znalezc */
+#skAddRel,#skRect,#skCirc,#skFoto,#skUndo,#skClear{color:#fff!important;border:0!important;font-weight:700;box-shadow:0 2px 0 rgba(0,0,0,.18)}
+#skAddRel{background:#2f7de1!important}#skAddRel:hover{background:#2468c2!important}
+#skRect,#skCirc{background:#1f9a6a!important}#skRect:hover,#skCirc:hover{background:#178056!important}
+#skFoto{background:#8a4fd1!important}#skFoto:hover{background:#7340b3!important}
+#skUndo{background:#e08a1e!important}#skUndo:hover{background:#c47515!important}
+#skClear{background:#d6453a!important}#skClear:hover{background:#b8382e!important}
+.skSide .skBox:nth-of-type(1){border-left:5px solid #2f7de1}
+.skSide .skBox:nth-of-type(2){border-left:5px solid #1f9a6a}
+.skSide .skBox:nth-of-type(3){border-left:5px solid #8a4fd1}.skRow{display:flex;gap:8px;flex-wrap:wrap}.skRow label{display:flex;align-items:center;gap:4px}.skRow input{width:100%;min-width:50px;height:30px;font-size:15px}.skInfo{font-size:14px;line-height:1.5}.skBad{color:#d9452f;font-weight:600}
 .tdCols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
 .tdH{font:800 18px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--accent2);margin:4px 0 10px;padding-bottom:6px;border-bottom:3px solid var(--accent2)}
 .tdGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
@@ -750,7 +760,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.69</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.70</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">

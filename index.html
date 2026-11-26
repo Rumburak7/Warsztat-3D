@@ -1028,6 +1028,7 @@ const ICONS = {
   organizer: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="6" width="26" height="22" rx="3"/><path d="M13 6v22M21 6v22M4 17h26"/></g></svg>',
   drawer: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="26" height="12" rx="1.5"/><rect x="4" y="18" width="26" height="12" rx="1.5"/></g><rect x="13" y="8.5" width="8" height="3" rx="1.5" fill="#c98a3a"/><rect x="13" y="22.5" width="8" height="3" rx="1.5" fill="#c98a3a"/></svg>',
   tftcase: '<svg viewBox="0 0 34 34"><path d="M3 28V14a7 7 0 0 1 7-7h14a7 7 0 0 1 7 7v14z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="10" y="11" width="14" height="10" rx="1" fill="#c98a3a"/><path d="M5 12l2 2M8 9l2 2M29 12l-2 2M26 9l-2 2" stroke="currentColor" stroke-width="1.6"/></svg>',
+  tftdesk: '<svg viewBox="0 0 34 34"><path d="M4 29h26M7 29 13 6h6l9 23" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.5 24 14 8.5h3.2L12.7 24z" fill="#c98a3a"/></svg>',
   wall: '<svg viewBox="0 0 34 34"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 4v26h16v-8"/><path d="M8 30h16"/></g><rect x="12" y="9" width="7" height="19" rx="1.5" fill="#c98a3a"/></svg>',
   cell: '<svg viewBox="0 0 34 34"><rect x="4" y="9" width="26" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="8" y="12" width="18" height="4" rx="2" fill="#c98a3a"/><rect x="8" y="18" width="18" height="4" rx="2" fill="#c98a3a"/></svg>',
   fit: '<svg viewBox="0 0 34 34"><rect x="3" y="9" width="28" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><g fill="currentColor"><circle cx="9" cy="17" r="2.6"/><circle cx="17" cy="17" r="3.1"/><circle cx="25" cy="17" r="3.6"/></g><path d="M17 3v5" stroke="#c98a3a" stroke-width="3" stroke-linecap="round"/></svg>',
@@ -2894,6 +2895,161 @@ const TPLS = [
         .concat(env && env.minWall < t - 0.01 ? [['Miejsce na płytkę', 'wycięte prosto w zaokrągleniu (płytka + 0,5 mm luzu), ścianka tam min. ' + f1(Math.max(0, env.minWall)) + ' mm']] : []),
       bom: ['4× wkręt M3 × 8 mm (samogwintujący) - spód'].concat(v.posts === 'yes' ? ['4× wkręt ' + v.tHole.replace('_', ',') + ' × 6 mm - moduł ekranu'] : []),
       editor: { oX: L, oY: W, t, L: 0, W: 0, bx0: 0, by0: 0 } };
+  } },
+/* ---------- obudowa TFT na biurko (klin) ---------- */
+{ id: 'tftdesk', name: 'Obudowa TFT na biurko (klin)', icon: 'tftdesk',
+  desc: 'Skośna obudowa na biurko: ekran pochylony do tyłu, ramka z oknem przykręcana 4 wkrętami z przodu, moduł ekranu przykręcony do kołków ramki, ESP32 leży na podłodze w środku z otworem USB w bocznej ściance. Druk bez podpór.',
+  p: [
+    { k: 'tft', label: 'Moduł ekranu', group: 'Ekran', def: 'msp3520', opts: [['msp3520', 'TFT 3,5" MSP3520 ILI9488 (sprawdzony)']].concat(Object.entries(SCREENS).filter(([k, s]) => s.pcb && !s.round && s.hole !== 'none').map(([k, s]) => [k, s.name])).concat([['custom', 'własny - wpisz wymiary']]),
+      apply: (v) => {
+        if (v.tft === 'msp3520') { Object.assign(v, { pcbW: 98, pcbH: 56.34, holeW: 92, holeH: 49.5, tHole: 'M3', winW: 76.5, winH: 50.5, offX: 2.64, offY: 0, postH: 4.4 }); return; }
+        const s = SCREENS[v.tft]; if (!s || !s.pcb) return;
+        Object.assign(v, { pcbW: s.pcb[0], pcbH: s.pcb[1], holeW: s.pcb[0] - 2 * s.inset, holeH: s.pcb[1] - 2 * s.inset, tHole: s.hole, winW: s.win[0], winH: s.win[1], offX: s.off[0], offY: s.off[1], postH: s.postH + 0.2 });
+        v.W = Math.ceil(v.pcbW + 14); v.H = Math.ceil(v.pcbH + 14);
+      }, hint: 'wymiary są przybliżone - sprawdź suwmiarką i popraw niżej' },
+    { k: 'pcbW', label: 'Płytka modułu - długość', def: 98, min: 20, max: 240, step: 0.1 },
+    { k: 'pcbH', label: 'Płytka modułu - szerokość', def: 56.34, min: 15, max: 200, step: 0.1 },
+    { k: 'holeW', label: 'Otwory płytki - rozstaw (długość)', def: 92, min: 5, max: 240, step: 0.1, hint: 'środek do środka otworów; suwmiarką: wewnętrzne brzegi + średnica otworu' },
+    { k: 'holeH', label: 'Otwory płytki - rozstaw (szerokość)', def: 49.5, min: 5, max: 200, step: 0.1 },
+    { k: 'tHole', label: 'Śruby modułu', def: 'M3', opts: [['M2', 'M2'], ['M2_5', 'M2,5'], ['M3', 'M3']] },
+    { k: 'postH', label: 'Wysokość kołków', def: 4.4, min: 0.5, max: 20, step: 0.1, hint: 'od płytki modułu do wierzchu szybki (+0,2 luzu)' },
+    { k: 'modX', label: 'Moduł - przesunięcie X', def: 0, min: -30, max: 30, step: 0.1, hint: 'płytka z kołkami w prawo (+) / w lewo (−), patrząc od przodu' },
+    { k: 'modY', label: 'Moduł - przesunięcie Y', def: 0, min: -30, max: 30, step: 0.1, hint: 'w górę (+) / w dół (−)' },
+    { k: 'winW', label: 'Okno - szerokość', def: 76.5, min: 5, max: 240, step: 0.1 },
+    { k: 'winH', label: 'Okno - wysokość', def: 50.5, min: 5, max: 200, step: 0.1 },
+    { k: 'offX', label: 'Obraz względem płytki X', def: 2.64, min: -60, max: 60, step: 0.05, hint: '+ w prawo, patrząc od przodu (złącze pinów po lewej)' },
+    { k: 'offY', label: 'Obraz względem płytki Y', def: 0, min: -60, max: 60, step: 0.05 },
+    { k: 'W', label: 'Szerokość obudowy', group: 'Obudowa', def: 112, min: 40, max: 250, step: 0.5 },
+    { k: 'H', label: 'Wysokość ramki (przód)', def: 70, min: 30, max: 200, step: 0.5 },
+    { k: 'ang', label: 'Pochylenie ekranu (° do blatu)', def: 60, min: 45, max: 75, step: 1, hint: '45-75°, cała obudowa drukuje się bez podpór' },
+    { k: 'D', label: 'Głębokość (od ramki do tyłu)', def: 46, min: 20, max: 120, step: 0.5, hint: 'więcej = więcej miejsca na ESP32 i kable' },
+    { k: 'lip', label: 'Górna półka', def: 19, min: 4, max: 80, step: 0.5, hint: 'płaski kawałek za górną krawędzią ramki' },
+    { k: 'lift', label: 'Dolna krawędź nad blatem', def: 3, min: 0, max: 20, step: 0.5 },
+    { k: 't', label: 'Grubość ścianki', def: 2, min: 1.2, max: 4, step: 0.2 },
+    { k: 'plate', label: 'Grubość ramki', def: 2, min: 1.2, max: 4, step: 0.2 },
+    { k: 'usb', label: 'Otwór USB (ESP32)', group: 'ESP32 w środku', def: 'r', opts: [['r', 'prawa ścianka'], ['l', 'lewa ścianka'], ['none', 'brak']] },
+    { k: 'espL', label: 'ESP32 - długość', def: 55, min: 10, max: 120, step: 0.5, hint: 'DevKit 38 pin ≈ 55 × 28' },
+    { k: 'espW', label: 'ESP32 - szerokość', def: 28, min: 10, max: 80, step: 0.5 },
+    { k: 'espH', label: 'ESP32 - wysokość z pinami', def: 15, min: 3, max: 40, step: 0.5 },
+    { k: 'usbW', label: 'Otwór - szerokość', def: 13, min: 3, max: 40, step: 0.5, show: (v) => v.usb !== 'none' },
+    { k: 'usbH', label: 'Otwór - wysokość', def: 14, min: 3, max: 40, step: 0.5, show: (v) => v.usb !== 'none' },
+    { k: 'usbZ', label: 'Otwór - od podłogi', def: 1, min: 0, max: 40, step: 0.5, show: (v) => v.usb !== 'none' },
+    { k: 'usbOff', label: 'Otwór - przesunięcie przód/tył', def: 0, min: -40, max: 40, step: 0.5, show: (v) => v.usb !== 'none', hint: 'od środka ESP32; + do tyłu' }
+  ],
+  build(v) {
+    const warn = [], t = v.t, PL = v.plate, W2 = v.W / 2, H2 = v.H / 2, Dm = v.D, LIFT = v.lift;
+    const al = v.ang * Math.PI / 180, sa = Math.sin(al), ca = Math.cos(al), CB = H2 + v.lip, R2 = Math.SQRT2;
+    const SEGN = 40;
+    // ---- profil boczny w ukladzie (y = w gore ekranu, d = w glab od krawedzi obudowy)
+    const dG = (y) => (LIFT + (y + H2) * sa) / ca;            // linia blatu
+    const yG = (d) => (d * ca - LIFT) / sa - H2;
+    const O = [[H2, 0], [H2, v.lip], [CB - Dm, Dm], [yG(Dm), Dm], [-H2, dG(-H2)], [-H2, 0]];
+    const kG = LIFT + H2 * sa - t;                            // wewnetrzna linia blatu: ca*d - sa*y = kG
+    const I = [[H2 - t, 0], [H2 - t, CB - t * R2 - (H2 - t)], [CB - t * R2 - (Dm - t), Dm - t], [(ca * (Dm - t) - kG) / sa, Dm - t],
+      [-H2 + t, (kG + sa * (-H2 + t)) / ca], [-H2 + t, 0]];
+    const bed = O[2][0] - O[3][0];
+    if (bed < 6) warn.push('Tylna ścianka do stołu ma tylko ' + f1(Math.max(0, bed)) + ' mm - zwiększ głębokość albo górną półkę.');
+    if (O[1][1] >= O[2][1] || O[4][1] >= Dm) warn.push('Obudowa za płytka przy tym pochyleniu - zwiększ głębokość.');
+    // ---- swiat (biurko): X w prawo, Y do tylu, Z w gore
+    const toW = (x, y, d) => [x, (y + H2) * ca + d * sa, LIFT + (y + H2) * sa - d * ca];
+    const dOf = (Y, Z) => Y * sa - (Z - LIFT) * ca, yOf = (Y, Z) => Y * ca + (Z - LIFT) * sa - H2;
+    // ---- tyl obudowy w ukladzie druku: X = x, Y = y, Z = Dm - d (otworem do gory)
+    const T = [], PZ = (P) => P.map(([y, d]) => [y, Dm - d]);
+    const xi = W2 - t;
+    for (let k = 0; k < 5; k++) G.prism(T, PZ([O[k], O[k + 1], I[k + 1], I[k]]), -xi, xi);
+    // ESP32 na podlodze (podloga = Z swiata t), polozenie liczone samo
+    const Zf = t, dC = v.postH + 1.6 + 3 + 1;
+    const yLo = (dC + (Zf + v.espH - LIFT) * ca) / sa, yHi = (Dm - t - 0.5 + (Zf - LIFT) * ca) / sa - v.espW;
+    let eY0 = (yLo + yHi) / 2;
+    if (yHi < yLo) { warn.push('ESP32 nie mieści się na podłodze - zwiększ głębokość o ok. ' + f1((yLo - yHi) * sa + 1) + ' mm.'); eY0 = yLo; }
+    const eY1 = eY0 + v.espW, eSide = v.usb === 'l' ? -1 : 1, eX1 = xi - 0.5, eX0 = eX1 - v.espL;
+    if (yOf(eY1, Zf + v.espH) + dOf(eY1, Zf + v.espH) > CB - t * R2 - 0.3) warn.push('ESP32 zahacza o tylną ściankę - zwiększ głębokość albo górną półkę.');
+    if (v.espL > 2 * xi - 1) warn.push('ESP32 dłuższy niż obudowa jest szeroka.');
+    // otwor USB: prostokat w ukladzie biurka, wyciety w bocznej sciance
+    const uY0 = (eY0 + eY1) / 2 + v.usbOff - v.usbW / 2, uY1 = uY0 + v.usbW, uZ0 = Zf + v.usbZ, uZ1 = uZ0 + v.usbH;
+    const Yle = (P, val) => G.clipHalf(P, ca, sa, val - H2 * ca), Yge = (P, val) => G.clipHalf(P, -ca, -sa, -(val - H2 * ca));
+    const Zle = (P, val) => G.clipHalf(P, sa, -ca, val - LIFT - H2 * sa), Zge = (P, val) => G.clipHalf(P, -sa, ca, -(val - LIFT - H2 * sa));
+    for (const s of [-1, 1]) {
+      const x0 = s > 0 ? xi : -W2, x1 = s > 0 ? W2 : -xi;
+      if (v.usb !== 'none' && s === eSide) {
+        const mid = Yle(Yge(O, uY0), uY1);
+        for (const P of [Yle(O, uY0), Yge(O, uY1), Zle(mid, uZ0), Zge(mid, uZ1)]) if (P.length >= 3) G.prism(T, PZ(P), x0, x1);
+        const inside = [[uY0, uZ0], [uY1, uZ0], [uY0, uZ1], [uY1, uZ1]].every(([Y, Z]) => { const y = yOf(Y, Z), d = dOf(Y, Z); return Z > 0.5 && d > 0.5 && y < H2 - 0.5 && y + d < CB - 0.5 && d < Dm - 0.5 && ca * d - sa * y < LIFT + H2 * sa - 0.5; });
+        if (!inside) warn.push('Otwór USB wychodzi poza boczną ściankę - zmniejsz go albo przesuń.');
+      } else G.prism(T, PZ(O), x0, x1);
+    }
+    // slupki w rogach pod wkrety ramki - spod przyciety skosem obudowy (zostaje w sciance)
+    const CX = W2 - 4, CY = H2 - 4, bo = 3, bi = SCREW_SELF.M3 / 2;
+    const zBot = (y) => Math.max(0, y > 0 ? Dm - (CB - y) : Dm - dG(y)) + 0.6;   // Z druku dna slupka
+    const postV = (T2, cx, cy, ro, ri, z1, zb) => {
+      for (let k = 0; k < SEGN; k++) {
+        const a = k / SEGN * 2 * Math.PI, b = (k + 1) / SEGN * 2 * Math.PI;
+        const q = [[cx + ri * Math.cos(a), cy + ri * Math.sin(a)], [cx + ro * Math.cos(a), cy + ro * Math.sin(a)], [cx + ro * Math.cos(b), cy + ro * Math.sin(b)], [cx + ri * Math.cos(b), cy + ri * Math.sin(b)]];
+        const top = q.map(([x, y]) => [x, y, z1]), bot = q.map(([x, y]) => [x, y, Math.min(z1 - 0.5, zb(y))]);
+        // zewnetrzny obrys q jest w kolejnosci CCW: 0->1->2->3
+        T2.push(top[0], top[1], top[2], top[0], top[2], top[3]);
+        T2.push(bot[0], bot[2], bot[1], bot[0], bot[3], bot[2]);
+        for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; T2.push(bot[i], bot[j], top[j], bot[i], top[j], top[i]); }
+      }
+    };
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) postV(T, sx * CX, sy * CY, bo, bi, Dm, zBot);
+    // ---- modul: plytka, otwory, okno (lokalnie x w prawo patrzac od przodu)
+    const mX = v.modX, mY = v.modY, hw = v.holeW / 2, hh = v.holeH / 2;
+    const win = [mX + v.offX - v.winW / 2, mY + v.offY - v.winH / 2, mX + v.offX + v.winW / 2, mY + v.offY + v.winH / 2];
+    const pcb = [mX - v.pcbW / 2, mY - v.pcbH / 2, mX + v.pcbW / 2, mY + v.pcbH / 2];
+    const holes = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => [mX + a * hw, mY + b * hh]);
+    const pst = POST[v.tHole] || POST.M3;
+    if (pcb[0] < -xi + 0.5 || pcb[2] > xi - 0.5 || pcb[1] < -(H2 - t) + 0.5 || pcb[3] > H2 - t - 0.5) warn.push('Płytka modułu nie mieści się w obudowie - powiększ obudowę albo przesuń moduł.');
+    for (const [hx, hy] of [[CX, CY], [-CX, CY], [CX, -CY], [-CX, -CY]]) {
+      const nx = clamp(hx, pcb[0], pcb[2]), ny = clamp(hy, pcb[1], pcb[3]);
+      if (Math.hypot(hx - nx, hy - ny) < bo + 0.4) { warn.push('Słupek na wkręt ramki trafia w płytkę modułu - powiększ obudowę (szerokość albo wysokość).'); break; }
+    }
+    if (win[0] < -W2 + 4 || win[2] > W2 - 4 || win[1] < -H2 + 4 || win[3] > H2 - 4) warn.push('Okno za blisko brzegu ramki.');
+    for (const [hx, hy] of holes) if (hx + pst[0] > win[0] && hx - pst[0] < win[2] && hy + pst[0] > win[1] && hy - pst[0] < win[3]) { warn.push('Kołek modułu wchodzi w okno - sprawdź rozstaw otworów i okno.'); break; }
+    // ---- ramka w ukladzie druku: przodem do stolu, X = -x, Z = d + PL
+    const B = [], SK = Math.min(0.8, PL - 0.4);
+    const sqC = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => ({ cx: -a * CX, cy: b * CY, r: SCREW.M3 / 2, m: 2 }));
+    const sqP = holes.map(([hx, hy]) => ({ cx: -hx, cy: hy, r: pst[1], m: 1.4 }));
+    const sqA = (q) => [q.cx - q.r - q.m, q.cy - q.r - q.m, q.cx + q.r + q.m, q.cy + q.r + q.m];
+    const winP = [-win[2], win[1], -win[0], win[3]];
+    const fill = (z0, z1, ex) => {
+      const xs = [-W2, W2], ys = [-H2, H2];
+      for (const e of ex) { xs.push(e[0], e[2]); ys.push(e[1], e[3]); }
+      const ux = [...new Set(xs.map(a => +clamp(a, -W2, W2).toFixed(4)))].sort((a, b) => a - b), uy = [...new Set(ys.map(a => +clamp(a, -H2, H2).toFixed(4)))].sort((a, b) => a - b);
+      for (let i = 0; i < ux.length - 1; i++) for (let j = 0; j < uy.length - 1; j++) {
+        const cx = (ux[i] + ux[i + 1]) / 2, cy = (uy[j] + uy[j + 1]) / 2;
+        if (ex.some(e => cx > e[0] && cx < e[2] && cy > e[1] && cy < e[3])) continue;
+        G.box(B, ux[i], uy[j], z0, ux[i + 1], uy[j + 1], z1);
+      }
+    };
+    fill(0, SK, [winP].concat(sqC.map(sqA)));
+    fill(SK, PL, [winP].concat(sqC.map(sqA), sqP.map(sqA)));
+    for (const q of sqC) G.plateHole(B, q.cx, q.cy, q.r, q.m, 0, PL, 40);
+    for (const q of sqP) { const a = sqA(q); G.box(B, a[0], a[1], 0, a[2], a[3], SK); G.plateHole(B, q.cx, q.cy, q.r, q.m, SK, PL, 40); G.tube(B, q.cx, q.cy, PL - 0.01, PL + v.postH, pst[0], pst[1], 32); }
+    // kolnierz centrujacy (wchodzi w otwor obudowy z luzem 0,3)
+    const xo = W2 - t - 0.3, yo = H2 - t - 0.3, th = 1.2, kd = 3, sxR = CX - bo - 2, syR = CY - bo - 3;
+    G.box(B, -sxR, yo - th, PL - 0.01, sxR, yo, PL + kd); G.box(B, -sxR, -yo, PL - 0.01, sxR, -yo + th, PL + kd);
+    G.box(B, xo - th, -syR, PL - 0.01, xo, syR, PL + kd); G.box(B, -xo, -syR, PL - 0.01, -xo + th, syR, PL + kd);
+    // ---- widok zlozony (biurko)
+    const hAsm = T.map(([X, Y, Z]) => toW(X, Y, Dm - Z)), bAsm = B.map(([X, Y, Z]) => toW(-X, Y, Z - PL));
+    const lbox = (x0, y0, d0, x1, y1, d1) => G.box([], x0, y0, -d1, x1, y1, -d0).map(([x, y, z]) => toW(x, y, -z));
+    const scr = lbox(win[0] - 3, win[1] - 2, 0.05, win[2] + 3, win[3] + 2, v.postH - 0.2).concat(lbox(pcb[0], pcb[1], v.postH, pcb[2], pcb[3], v.postH + 1.6));
+    const espX0 = eSide > 0 ? eX0 : -eX1, espX1 = eSide > 0 ? eX1 : -eX0;
+    const esp = G.box([], espX0, eY0, Zf, espX1, eY1, Zf + v.espH);
+    const footD = O[3][0] - O[4][0];
+    const parts = [
+      { name: 'Tył obudowy (drukuj otworem do góry)', file: 'obudowa_tyl', tris: G.toBed(T), asmTris: hAsm, count: 1, color: COL[1], asm: [[0, 0, 0]] },
+      { name: 'Ramka z oknem (drukuj przodem do stołu)', file: 'obudowa_ramka', tris: G.toBed(B), asmTris: bAsm, count: 1, color: COL[0], asm: [[0, 0, 0]] },
+      { name: 'Moduł ekranu (podgląd)', ghost: true, tris: scr, asmTris: scr, count: 1, color: '#1f3b6e', asm: [[0, 0, 0]] },
+      { name: 'ESP32 (podgląd)', ghost: true, tris: esp, asmTris: esp, count: 1, color: '#3f8a4a', asm: [[0, 0, 0]] }
+    ];
+    const bb = G.bbox(hAsm.concat(bAsm));
+    return { parts, warn,
+      info: [['Wymiar na biurku', f1(bb.size[0]) + ' × ' + f1(bb.size[1]) + ' × ' + f1(bb.size[2]) + ' mm (szer. × głęb. × wys.)'],
+        ['Ramka', f1(v.W) + ' × ' + f1(v.H) + ' mm, okno ' + f1(v.winW) + ' × ' + f1(v.winH) + ' mm'],
+        ['ESP32', 'leży na podłodze, ' + f1(eY0) + '-' + f1(eY1) + ' mm od przedniej krawędzi'],
+        ['Druk', 'tył: otworem do góry, ramka: przodem do stołu - bez podpór']],
+      bom: ['4× wkręt M3 × 8 mm (samogwintujący) - ramka do obudowy', '4× wkręt ' + v.tHole.replace('_', ',') + ' × 6 mm - moduł ekranu do ramki (nie dłuższy!)', 'taśma dwustronna albo klej na gorąco - ESP32'] };
   } },
 /* ---------- 3. uchwyt scienny U ---------- */
 { id: 'wall', name: 'Uchwyt ścienny', icon: 'wall',

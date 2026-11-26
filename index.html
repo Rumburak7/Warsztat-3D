@@ -760,7 +760,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.74</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.75</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -2918,6 +2918,7 @@ const TPLS = [
     { k: 'modY', label: 'Moduł - przesunięcie Y', def: 0, min: -30, max: 30, step: 0.1, hint: 'w górę (+) / w dół (−)' },
     { k: 'winW', label: 'Okno - szerokość', def: 76.5, min: 5, max: 240, step: 0.1 },
     { k: 'winH', label: 'Okno - wysokość', def: 50.5, min: 5, max: 200, step: 0.1 },
+    { k: 'cham', label: 'Ścięcie krawędzi okna (fazka)', def: 1.5, min: 0, max: 3, step: 0.1, hint: 'skos 45° wokół okna od przodu ramki; 0 = prosta krawędź' },
     { k: 'offX', label: 'Obraz względem płytki X', def: 2.64, min: -60, max: 60, step: 0.05, hint: '+ w prawo, patrząc od przodu (złącze pinów po lewej)' },
     { k: 'offY', label: 'Obraz względem płytki Y', def: 0, min: -60, max: 60, step: 0.05 },
     { k: 'W', label: 'Szerokość obudowy', group: 'Obudowa', def: 112, min: 40, max: 250, step: 0.5 },
@@ -3006,9 +3007,9 @@ const TPLS = [
       if (Math.hypot(hx - nx, hy - ny) < bo + 0.4) { warn.push('Słupek na wkręt ramki trafia w płytkę modułu - powiększ obudowę (szerokość albo wysokość).'); break; }
     }
     if (win[0] < -W2 + 4 || win[2] > W2 - 4 || win[1] < -H2 + 4 || win[3] > H2 - 4) warn.push('Okno za blisko brzegu ramki.');
-    for (const [hx, hy] of holes) if (hx + pst[0] > win[0] && hx - pst[0] < win[2] && hy + pst[0] > win[1] && hy - pst[0] < win[3]) { warn.push('Kołek modułu wchodzi w okno - sprawdź rozstaw otworów i okno.'); break; }
+    for (const [hx, hy] of holes) if (hx + pst[1] + 1.4 > win[0] - (v.cham || 0) && hx - pst[1] - 1.4 < win[2] + (v.cham || 0) && hy + pst[1] + 1.4 > win[1] - (v.cham || 0) && hy - pst[1] - 1.4 < win[3] + (v.cham || 0)) { warn.push('Kołek modułu wchodzi w okno - sprawdź rozstaw otworów i okno.'); break; }
     // ---- ramka w ukladzie druku: przodem do stolu, X = -x, Z = d + PL
-    const B = [], SK = Math.min(0.8, PL - 0.4);
+    const B = [], CH = clamp(v.cham || 0, 0, PL - 0.4), SK = Math.max(Math.min(0.8, PL - 0.4), CH);
     const sqC = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => ({ cx: -a * CX, cy: b * CY, r: SCREW.M3 / 2, m: 2 }));
     const sqP = holes.map(([hx, hy]) => ({ cx: -hx, cy: hy, r: pst[1], m: 1.4 }));
     const sqA = (q) => [q.cx - q.r - q.m, q.cy - q.r - q.m, q.cx + q.r + q.m, q.cy + q.r + q.m];
@@ -3023,10 +3024,30 @@ const TPLS = [
         G.box(B, ux[i], uy[j], z0, ux[i + 1], uy[j + 1], z1);
       }
     };
-    fill(0, SK, [winP].concat(sqC.map(sqA)));
+    // v5.75: fazka okna - przy stole (przod ramki) okno wieksze o CH, skos 45 st. do normalnego okna
+    const winE = [winP[0] - CH, winP[1] - CH, winP[2] + CH, winP[3] + CH];
+    if (CH > 0.01) {
+      fill(0, CH, [winE].concat(sqC.map(sqA)));
+      const conv = (V, F) => {   // wypukla bryla: sciany jako listy indeksow, kierunek liczony sam
+        const c = [0, 1, 2].map(i => V.reduce((a, p) => a + p[i], 0) / V.length);
+        for (const f of F) for (let i = 1; i < f.length - 1; i++) {
+          let a = V[f[0]], b = V[f[i]], d = V[f[i + 1]];
+          const n = [(b[1] - a[1]) * (d[2] - a[2]) - (b[2] - a[2]) * (d[1] - a[1]), (b[2] - a[2]) * (d[0] - a[0]) - (b[0] - a[0]) * (d[2] - a[2]), (b[0] - a[0]) * (d[1] - a[1]) - (b[1] - a[1]) * (d[0] - a[0])];
+          if (n[0] * (a[0] - c[0]) + n[1] * (a[1] - c[1]) + n[2] * (a[2] - c[2]) < 0) [b, d] = [d, b];
+          B.push(a, b, d);
+        }
+      };
+      const oc = [[winE[0], winE[1]], [winE[2], winE[1]], [winE[2], winE[3]], [winE[0], winE[3]]];
+      const ic = [[winP[0], winP[1]], [winP[2], winP[1]], [winP[2], winP[3]], [winP[0], winP[3]]];
+      for (let i = 0; i < 4; i++) {
+        const j = (i + 1) % 4, A0 = [oc[i][0], oc[i][1], 0], B0 = [oc[j][0], oc[j][1], 0], A1 = [oc[i][0], oc[i][1], CH], B1 = [oc[j][0], oc[j][1], CH], A2 = [ic[i][0], ic[i][1], CH], B2 = [ic[j][0], ic[j][1], CH];
+        conv([A0, B0, A1, B1, A2, B2], [[0, 1, 3, 2], [2, 3, 5, 4], [0, 4, 5, 1], [0, 2, 4], [1, 5, 3]]);
+      }
+      if (SK > CH + 0.01) fill(CH, SK, [winP].concat(sqC.map(sqA)));
+    } else fill(0, SK, [winP].concat(sqC.map(sqA)));
     fill(SK, PL, [winP].concat(sqC.map(sqA), sqP.map(sqA)));
     for (const q of sqC) G.plateHole(B, q.cx, q.cy, q.r, q.m, 0, PL, 40);
-    for (const q of sqP) { const a = sqA(q); G.box(B, a[0], a[1], 0, a[2], a[3], SK); G.plateHole(B, q.cx, q.cy, q.r, q.m, SK, PL, 40); G.tube(B, q.cx, q.cy, PL - 0.01, PL + v.postH, pst[0], pst[1], 32); }
+    for (const q of sqP) { G.plateHole(B, q.cx, q.cy, q.r, q.m, SK, PL, 40); G.tube(B, q.cx, q.cy, PL - 0.01, PL + v.postH, pst[0], pst[1], 32); }
     // kolnierz centrujacy (wchodzi w otwor obudowy z luzem 0,3)
     const xo = W2 - t - 0.3, yo = H2 - t - 0.3, th = 1.2, kd = 3, sxR = CX - bo - 2, syR = CY - bo - 3;
     G.box(B, -sxR, yo - th, PL - 0.01, sxR, yo, PL + kd); G.box(B, -sxR, -yo, PL - 0.01, sxR, -yo + th, PL + kd);

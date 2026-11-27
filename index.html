@@ -760,7 +760,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.75</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.76</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -2897,9 +2897,9 @@ const TPLS = [
       editor: { oX: L, oY: W, t, L: 0, W: 0, bx0: 0, by0: 0 } };
   } },
 /* ---------- obudowa TFT na biurko (klin) ---------- */
-/* v5.74: nowy szablon - obudowa TFT na biurko (klin) */
+/* v5.74: nowy szablon - obudowa TFT na biurko (klin); v5.76: przedluzenie ramy, ESP32 stojacy pionowo z USB przez tylna scianke */
 { id: 'tftdesk', name: 'Obudowa TFT na biurko (klin)', icon: 'tftdesk',
-  desc: 'Skośna obudowa na biurko: ekran pochylony do tyłu, ramka z oknem przykręcana 4 wkrętami z przodu, moduł ekranu przykręcony do kołków ramki, ESP32 leży na podłodze w środku z otworem USB w bocznej ściance. Druk bez podpór.',
+  desc: 'Skośna obudowa na biurko: ekran pochylony do tyłu, ramka z oknem przykręcana 4 wkrętami z przodu, moduł ekranu przykręcony do kołków ramki, ESP32 stoi pionowo w uchwycie na tylnej ściance (USB wychodzi z tyłu) albo leży na podłodze z USB w boku. Druk bez podpór.',
   p: [
     { k: 'tft', label: 'Moduł ekranu', group: 'Ekran', def: 'msp3520', opts: [['msp3520', 'TFT 3,5" MSP3520 ILI9488 (sprawdzony)']].concat(Object.entries(SCREENS).filter(([k, s]) => s.pcb && !s.round && s.hole !== 'none').map(([k, s]) => [k, s.name])).concat([['custom', 'własny - wpisz wymiary']]),
       apply: (v) => {
@@ -2926,29 +2926,32 @@ const TPLS = [
     { k: 'ang', label: 'Pochylenie ekranu (° do blatu)', def: 60, min: 45, max: 75, step: 1, hint: '45-75°, cała obudowa drukuje się bez podpór' },
     { k: 'D', label: 'Głębokość (od ramki do tyłu)', def: 46, min: 20, max: 120, step: 0.5, hint: 'więcej = więcej miejsca na ESP32 i kable' },
     { k: 'lip', label: 'Górna półka', def: 19, min: 4, max: 80, step: 0.5, hint: 'płaski kawałek za górną krawędzią ramki' },
+    { k: 'ext', label: 'Przedłużenie ramy (prosta część)', def: 5, min: 0, max: 30, step: 0.5, hint: 'proste ścianki i słupki przy ramce - więcej miejsca w środku' },
     { k: 'lift', label: 'Dolna krawędź nad blatem', def: 3, min: 0, max: 20, step: 0.5 },
     { k: 't', label: 'Grubość ścianki', def: 2, min: 1.2, max: 4, step: 0.2 },
     { k: 'plate', label: 'Grubość ramki', def: 2, min: 1.2, max: 4, step: 0.2 },
-    { k: 'usb', label: 'Otwór USB (ESP32)', group: 'ESP32 w środku', def: 'r', opts: [['r', 'prawa ścianka'], ['l', 'lewa ścianka'], ['none', 'brak']] },
-    { k: 'espL', label: 'ESP32 - długość', def: 55, min: 10, max: 120, step: 0.5, hint: 'DevKit 38 pin ≈ 55 × 28' },
-    { k: 'espW', label: 'ESP32 - szerokość', def: 28, min: 10, max: 80, step: 0.5 },
-    { k: 'espH', label: 'ESP32 - wysokość z pinami', def: 15, min: 3, max: 40, step: 0.5 },
-    { k: 'usbW', label: 'Otwór - szerokość', def: 13, min: 3, max: 40, step: 0.5, show: (v) => v.usb !== 'none' },
-    { k: 'usbH', label: 'Otwór - wysokość', def: 14, min: 3, max: 40, step: 0.5, show: (v) => v.usb !== 'none' },
-    { k: 'usbZ', label: 'Otwór - od podłogi', def: 1, min: 0, max: 40, step: 0.5, show: (v) => v.usb !== 'none' },
-    { k: 'usbOff', label: 'Otwór - przesunięcie przód/tył', def: 0, min: -40, max: 40, step: 0.5, show: (v) => v.usb !== 'none', hint: 'od środka ESP32; + do tyłu' }
+    { k: 'espMode', label: 'ESP32 w środku', group: 'ESP32 w środku', def: 'stand', opts: [['stand', 'stoi pionowo, USB przez tylną ściankę'], ['floor', 'leży na podłodze, USB w bocznej ściance'], ['none', 'bez ESP32']] },
+    { k: 'usb', label: 'Otwór USB w ściance', def: 'r', opts: [['r', 'prawa ścianka'], ['l', 'lewa ścianka'], ['none', 'brak']], show: (v) => v.espMode === 'floor' },
+    { k: 'espL', label: 'ESP32 - długość', def: 39, min: 10, max: 120, step: 0.5, show: (v) => v.espMode !== 'none', hint: 'D1 mini ESP32 ≈ 39 × 31, DevKit 38 pin ≈ 55 × 28' },
+    { k: 'espW', label: 'ESP32 - szerokość', def: 31, min: 10, max: 80, step: 0.5, show: (v) => v.espMode !== 'none' },
+    { k: 'espH', label: 'ESP32 - grubość z pinami', def: 10, min: 3, max: 40, step: 0.5, show: (v) => v.espMode !== 'none', hint: 'ile miejsca od płytki ESP do przodu (piny, kabelki)' },
+    { k: 'espX', label: 'ESP32 - przesunięcie w bok', def: 0, min: -60, max: 60, step: 0.5, show: (v) => v.espMode === 'stand', hint: '+ w prawo, patrząc od przodu' },
+    { k: 'usbW', label: 'Otwór USB - szerokość', def: 12, min: 3, max: 40, step: 0.5, show: (v) => v.espMode === 'stand' || (v.espMode === 'floor' && v.usb !== 'none') },
+    { k: 'usbH', label: 'Otwór USB - wysokość', def: 8, min: 3, max: 40, step: 0.5, show: (v) => v.espMode === 'stand' || (v.espMode === 'floor' && v.usb !== 'none'), hint: 'wtyczka micro-USB ≈ 11 × 7 mm' },
+    { k: 'usbZ', label: 'Otwór - od podłogi', def: 1, min: 0, max: 40, step: 0.5, show: (v) => v.espMode === 'floor' && v.usb !== 'none' },
+    { k: 'usbOff', label: 'Otwór - przesunięcie', def: 0, min: -40, max: 40, step: 0.5, show: (v) => v.espMode !== 'none' && !(v.espMode === 'floor' && v.usb === 'none'), hint: 'od środka ESP32 (pionowo: w bok, na podłodze: + do tyłu)' }
   ],
   build(v) {
-    const warn = [], t = v.t, PL = v.plate, W2 = v.W / 2, H2 = v.H / 2, Dm = v.D, LIFT = v.lift;
+    const warn = [], t = v.t, PL = v.plate, W2 = v.W / 2, H2 = v.H / 2, Dm = v.D, LIFT = v.lift, F = -(v.ext || 0), EM = v.espMode || 'floor';
     const al = v.ang * Math.PI / 180, sa = Math.sin(al), ca = Math.cos(al), CB = H2 + v.lip, R2 = Math.SQRT2;
     const SEGN = 40;
     // ---- profil boczny w ukladzie (y = w gore ekranu, d = w glab od krawedzi obudowy)
     const dG = (y) => (LIFT + (y + H2) * sa) / ca;            // linia blatu
     const yG = (d) => (d * ca - LIFT) / sa - H2;
-    const O = [[H2, 0], [H2, v.lip], [CB - Dm, Dm], [yG(Dm), Dm], [-H2, dG(-H2)], [-H2, 0]];
+    const O = [[H2, F], [H2, v.lip], [CB - Dm, Dm], [yG(Dm), Dm], [-H2, dG(-H2)], [-H2, 0]];
     const kG = LIFT + H2 * sa - t;                            // wewnetrzna linia blatu: ca*d - sa*y = kG
-    const I = [[H2 - t, 0], [H2 - t, CB - t * R2 - (H2 - t)], [CB - t * R2 - (Dm - t), Dm - t], [(ca * (Dm - t) - kG) / sa, Dm - t],
-      [-H2 + t, (kG + sa * (-H2 + t)) / ca], [-H2 + t, 0]];
+    const I = [[H2 - t, F], [H2 - t, CB - t * R2 - (H2 - t)], [CB - t * R2 - (Dm - t), Dm - t], [(ca * (Dm - t) - kG) / sa, Dm - t],
+      [-H2 + t, (kG + sa * (-H2 + t)) / ca], [-H2 + t, F]];
     const bed = O[2][0] - O[3][0];
     if (bed < 6) warn.push('Tylna ścianka do stołu ma tylko ' + f1(Math.max(0, bed)) + ' mm - zwiększ głębokość albo górną półkę.');
     if (O[1][1] >= O[2][1] || O[4][1] >= Dm) warn.push('Obudowa za płytka przy tym pochyleniu - zwiększ głębokość.');
@@ -2958,25 +2961,49 @@ const TPLS = [
     // ---- tyl obudowy w ukladzie druku: X = x, Y = y, Z = Dm - d (otworem do gory)
     const T = [], PZ = (P) => P.map(([y, d]) => [y, Dm - d]);
     const xi = W2 - t;
-    for (let k = 0; k < 5; k++) G.prism(T, PZ([O[k], O[k + 1], I[k + 1], I[k]]), -xi, xi);
+    // tylna scianka (lezy na stole) - w trybie 'stand' z otworem na wtyczke USB
+    const xr = [-W2 + t, W2 - t], Ib0 = I[3][0], Ib1 = I[2][0];
+    const ex = v.espX || 0, ehw = v.espW / 2, yb = Ib0 + 4, ycU = yb + 2.7;
+    const sx0 = ex + (v.usbOff || 0) - v.usbW / 2, sx1 = sx0 + v.usbW, sy0 = ycU - v.usbH / 2, sy1 = ycU + v.usbH / 2;
+    for (let k = 0; k < 5; k++) {
+      const Q = [O[k], O[k + 1], I[k + 1], I[k]];
+      if (k === 2 && EM === 'stand') {
+        G.prism(T, PZ(Q), -xi, sx0); G.prism(T, PZ(Q), sx1, xi);
+        for (const P of [G.clipHalf(Q, 1, 0, sy0), G.clipHalf(Q, -1, 0, -sy1)]) if (P.length >= 3) G.prism(T, PZ(P), sx0, sx1);
+        if (sx0 < -xi + 1 || sx1 > xi - 1 || sy0 < O[3][0] + 1 || sy1 > O[2][0] - 1) warn.push('Otwór USB wychodzi poza tylną ściankę - zmniejsz go albo przesuń ESP32.');
+      } else G.prism(T, PZ(Q), -xi, xi);
+    }
     // ESP32 na podlodze (podloga = Z swiata t), polozenie liczone samo
-    const Zf = t, dC = v.postH + 1.6 + 3 + 1;
+    const Zf = t, dC = F + v.postH + 1.6 + 3 + 1;
     const yLo = (dC + (Zf + v.espH - LIFT) * ca) / sa, yHi = (Dm - t - 0.5 + (Zf - LIFT) * ca) / sa - v.espW;
     let eY0 = (yLo + yHi) / 2;
-    if (yHi < yLo) { warn.push('ESP32 nie mieści się na podłodze - zwiększ głębokość o ok. ' + f1((yLo - yHi) * sa + 1) + ' mm.'); eY0 = yLo; }
+    if (EM === 'floor' && yHi < yLo) { warn.push('ESP32 nie mieści się na podłodze - zwiększ głębokość o ok. ' + f1((yLo - yHi) * sa + 1) + ' mm.'); eY0 = yLo; }
     const eY1 = eY0 + v.espW, eSide = v.usb === 'l' ? -1 : 1, eX1 = xi - 0.5, eX0 = eX1 - v.espL;
-    if (yOf(eY1, Zf + v.espH) + dOf(eY1, Zf + v.espH) > CB - t * R2 - 0.3) warn.push('ESP32 zahacza o tylną ściankę - zwiększ głębokość albo górną półkę.');
-    if (v.espL > 2 * xi - 1) warn.push('ESP32 dłuższy niż obudowa jest szeroka.');
+    if (EM === 'floor' && yOf(eY1, Zf + v.espH) + dOf(eY1, Zf + v.espH) > CB - t * R2 - 0.3) warn.push('ESP32 zahacza o tylną ściankę - zwiększ głębokość albo górną półkę.');
+    if (EM === 'floor' && v.espL > 2 * xi - 1) warn.push('ESP32 dłuższy niż obudowa jest szeroka.');
+    // uchwyt ESP32 stojacego pionowo (druk: na tylnej sciance, plytka prostopadle do niej, USB w dol)
+    const Ztop = t + v.espL, Zh = Math.max(t + 5, Ztop - 3), zComp = Dm - (F + v.postH + 1.6 + 3);
+    if (EM === 'stand') {
+      const wx0 = ex - ehw - 2.4, wx1 = ex + ehw + 2.4, ch = 1.7;
+      G.box(T, wx0, yb - 2, t - 0.01, wx1, yb, Zh);                                 // plecy
+      G.box(T, wx0, yb - 0.01, t - 0.01, ex - ehw - 0.4, yb + ch + 1.5, Zh);        // boki z kanalem
+      G.box(T, ex + ehw + 0.4, yb - 0.01, t - 0.01, wx1, yb + ch + 1.5, Zh);
+      G.box(T, ex - ehw - 0.41, yb + ch, Zh - 6, ex - ehw + 1.2, yb + ch + 1.5, Zh); // zaczepy u gory
+      G.box(T, ex + ehw - 1.2, yb + ch, Zh - 6, ex + ehw + 0.41, yb + ch + 1.5, Zh);
+      if (wx0 < -xi + 0.5 || wx1 > xi - 0.5) warn.push('Uchwyt ESP32 wychodzi poza obudowę - przesuń ESP32 w bok.');
+      if (yb + v.espH > Ib1 + 3) warn.push('ESP32 z pinami grubszy niż miejsce na tylnej ściance - zwiększ głębokość albo górną półkę.');
+      if (Ztop > zComp - 0.5) warn.push('ESP32 sięga do płytki ekranu - zwiększ przedłużenie ramy albo głębokość o ok. ' + f1(Ztop - zComp + 1) + ' mm.');
+    }
     // otwor USB: prostokat w ukladzie biurka, wyciety w bocznej sciance
     const uY0 = (eY0 + eY1) / 2 + v.usbOff - v.usbW / 2, uY1 = uY0 + v.usbW, uZ0 = Zf + v.usbZ, uZ1 = uZ0 + v.usbH;
     const Yle = (P, val) => G.clipHalf(P, ca, sa, val - H2 * ca), Yge = (P, val) => G.clipHalf(P, -ca, -sa, -(val - H2 * ca));
     const Zle = (P, val) => G.clipHalf(P, sa, -ca, val - LIFT - H2 * sa), Zge = (P, val) => G.clipHalf(P, -sa, ca, -(val - LIFT - H2 * sa));
     for (const s of [-1, 1]) {
       const x0 = s > 0 ? xi : -W2, x1 = s > 0 ? W2 : -xi;
-      if (v.usb !== 'none' && s === eSide) {
+      if (EM === 'floor' && v.usb !== 'none' && s === eSide) {
         const mid = Yle(Yge(O, uY0), uY1);
         for (const P of [Yle(O, uY0), Yge(O, uY1), Zle(mid, uZ0), Zge(mid, uZ1)]) if (P.length >= 3) G.prism(T, PZ(P), x0, x1);
-        const inside = [[uY0, uZ0], [uY1, uZ0], [uY0, uZ1], [uY1, uZ1]].every(([Y, Z]) => { const y = yOf(Y, Z), d = dOf(Y, Z); return Z > 0.5 && d > 0.5 && y < H2 - 0.5 && y + d < CB - 0.5 && d < Dm - 0.5 && ca * d - sa * y < LIFT + H2 * sa - 0.5; });
+        const inside = [[uY0, uZ0], [uY1, uZ0], [uY0, uZ1], [uY1, uZ1]].every(([Y, Z]) => { const y = yOf(Y, Z), d = dOf(Y, Z); return Z > 0.5 && d > F + 0.5 && y < H2 - 0.5 && y + d < CB - 0.5 && d < Dm - 0.5 && ca * d - sa * y < LIFT + H2 * sa - 0.5; });
         if (!inside) warn.push('Otwór USB wychodzi poza boczną ściankę - zmniejsz go albo przesuń.');
       } else G.prism(T, PZ(O), x0, x1);
     }
@@ -2994,7 +3021,7 @@ const TPLS = [
         for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; T2.push(bot[i], bot[j], top[j], bot[i], top[j], top[i]); }
       }
     };
-    for (const sx of [-1, 1]) for (const sy of [-1, 1]) postV(T, sx * CX, sy * CY, bo, bi, Dm, zBot);
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) postV(T, sx * CX, sy * CY, bo, bi, Dm - F, zBot);
     // ---- modul: plytka, otwory, okno (lokalnie x w prawo patrzac od przodu)
     const mX = v.modX, mY = v.modY, hw = v.holeW / 2, hh = v.holeH / 2;
     const win = [mX + v.offX - v.winW / 2, mY + v.offY - v.winH / 2, mX + v.offX + v.winW / 2, mY + v.offY + v.winH / 2];
@@ -3053,25 +3080,25 @@ const TPLS = [
     G.box(B, -sxR, yo - th, PL - 0.01, sxR, yo, PL + kd); G.box(B, -sxR, -yo, PL - 0.01, sxR, -yo + th, PL + kd);
     G.box(B, xo - th, -syR, PL - 0.01, xo, syR, PL + kd); G.box(B, -xo, -syR, PL - 0.01, -xo + th, syR, PL + kd);
     // ---- widok zlozony (biurko)
-    const hAsm = T.map(([X, Y, Z]) => toW(X, Y, Dm - Z)), bAsm = B.map(([X, Y, Z]) => toW(-X, Y, Z - PL));
-    const lbox = (x0, y0, d0, x1, y1, d1) => G.box([], x0, y0, -d1, x1, y1, -d0).map(([x, y, z]) => toW(x, y, -z));
+    const hAsm = T.map(([X, Y, Z]) => toW(X, Y, Dm - Z)), bAsm = B.map(([X, Y, Z]) => toW(-X, Y, Z - PL + F));
+    const lbox = (x0, y0, d0, x1, y1, d1) => G.box([], x0, y0, -d1 - F, x1, y1, -d0 - F).map(([x, y, z]) => toW(x, y, -z));
     const scr = lbox(win[0] - 3, win[1] - 2, 0.05, win[2] + 3, win[3] + 2, v.postH - 0.2).concat(lbox(pcb[0], pcb[1], v.postH, pcb[2], pcb[3], v.postH + 1.6));
     const espX0 = eSide > 0 ? eX0 : -eX1, espX1 = eSide > 0 ? eX1 : -eX0;
-    const esp = G.box([], espX0, eY0, Zf, espX1, eY1, Zf + v.espH);
+    const esp = EM === 'stand' ? G.box([], ex - ehw, yb, t, ex + ehw, yb + v.espH, Ztop).map(([X, Y, Z]) => toW(X, Y, Dm - Z)) : G.box([], espX0, eY0, Zf, espX1, eY1, Zf + v.espH);
     const footD = O[3][0] - O[4][0];
     const parts = [
       { name: 'Tył obudowy (drukuj otworem do góry)', file: 'obudowa_tyl', tris: G.toBed(T), asmTris: hAsm, count: 1, color: COL[1], asm: [[0, 0, 0]] },
       { name: 'Ramka z oknem (drukuj przodem do stołu)', file: 'obudowa_ramka', tris: G.toBed(B), asmTris: bAsm, count: 1, color: COL[0], asm: [[0, 0, 0]] },
       { name: 'Moduł ekranu (podgląd)', ghost: true, tris: scr, asmTris: scr, count: 1, color: '#1f3b6e', asm: [[0, 0, 0]] },
-      { name: 'ESP32 (podgląd)', ghost: true, tris: esp, asmTris: esp, count: 1, color: '#3f8a4a', asm: [[0, 0, 0]] }
-    ];
+      EM !== 'none' && { name: 'ESP32 (podgląd)', ghost: true, tris: esp, asmTris: esp, count: 1, color: '#3f8a4a', asm: [[0, 0, 0]] }
+    ].filter(Boolean);
     const bb = G.bbox(hAsm.concat(bAsm));
     return { parts, warn,
       info: [['Wymiar na biurku', f1(bb.size[0]) + ' × ' + f1(bb.size[1]) + ' × ' + f1(bb.size[2]) + ' mm (szer. × głęb. × wys.)'],
         ['Ramka', f1(v.W) + ' × ' + f1(v.H) + ' mm, okno ' + f1(v.winW) + ' × ' + f1(v.winH) + ' mm'],
-        ['ESP32', 'leży na podłodze, ' + f1(eY0) + '-' + f1(eY1) + ' mm od przedniej krawędzi'],
+        ['ESP32', EM === 'stand' ? 'stoi pionowo w uchwycie, USB przez tylną ściankę' : EM === 'floor' ? 'leży na podłodze, ' + f1(eY0) + '-' + f1(eY1) + ' mm od przedniej krawędzi' : 'brak'],
         ['Druk', 'tył: otworem do góry, ramka: przodem do stołu - bez podpór']],
-      bom: ['4× wkręt M3 × 8 mm (samogwintujący) - ramka do obudowy', '4× wkręt ' + v.tHole.replace('_', ',') + ' × 6 mm - moduł ekranu do ramki (nie dłuższy!)', 'taśma dwustronna albo klej na gorąco - ESP32'] };
+      bom: ['4× wkręt M3 × 8 mm (samogwintujący) - ramka do obudowy', '4× wkręt ' + v.tHole.replace('_', ',') + ' × 6 mm - moduł ekranu do ramki (nie dłuższy!)', (EM === 'stand' ? 'ESP32 wsuwasz od góry w uchwyt, USB podłączasz od tyłu' : EM === 'floor' ? 'taśma dwustronna albo klej na gorąco - ESP32' : '')].filter(Boolean) };
   } },
 /* ---------- 3. uchwyt scienny U ---------- */
 { id: 'wall', name: 'Uchwyt ścienny', icon: 'wall',

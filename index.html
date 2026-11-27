@@ -760,7 +760,7 @@ ul.bom{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)} ul.bom li{ma
 <body>
 <div id="app">
   <div class="bar">
-    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.76</small></span></div>
+    <div class="brand"><img src="icon-192.png" alt=""><span>Warsztat 3D<small class="author">autor Adam Bryks 2026 · v5.77</small></span></div>
     <div class="menuWrap"><button class="btn" id="btnModels" title="Zapisane modele">&#128193; Moje modele &#9662;</button><div class="menu" id="mMenu" hidden></div></div>
     <button class="btn" id="btnLib" title="Magazyn obiektów 3D - Twoje pliki STL / 3MF / STEP z obrazkami, opisem i statusem">&#128230; Magazyn 3D</button>
     <input class="name" id="mName" value="" title="Nazwa modelu">
@@ -2948,7 +2948,7 @@ const TPLS = [
     // ---- profil boczny w ukladzie (y = w gore ekranu, d = w glab od krawedzi obudowy)
     const dG = (y) => (LIFT + (y + H2) * sa) / ca;            // linia blatu
     const yG = (d) => (d * ca - LIFT) / sa - H2;
-    const O = [[H2, F], [H2, v.lip], [CB - Dm, Dm], [yG(Dm), Dm], [-H2, dG(-H2)], [-H2, 0]];
+    const O = [[H2, F], [H2, v.lip], [CB - Dm, Dm], [yG(Dm), Dm], [-H2, dG(-H2)], [-H2, F]];   // v5.77: dolna krawedz tez podniesiona (rama rowna)
     const kG = LIFT + H2 * sa - t;                            // wewnetrzna linia blatu: ca*d - sa*y = kG
     const I = [[H2 - t, F], [H2 - t, CB - t * R2 - (H2 - t)], [CB - t * R2 - (Dm - t), Dm - t], [(ca * (Dm - t) - kG) / sa, Dm - t],
       [-H2 + t, (kG + sa * (-H2 + t)) / ca], [-H2 + t, F]];
